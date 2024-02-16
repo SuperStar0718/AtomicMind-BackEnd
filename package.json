@@ -6,7 +6,7 @@
   "scripts": {
     "build": "npx ts-node build.ts",
     "start": "node dist/index.js",
-    "dev": "nodemon src/index.ts"
+    "dev": "cp .env.production .env &&  nodemon src/index.ts"
   },
   "repository": {
     "type": "git",
