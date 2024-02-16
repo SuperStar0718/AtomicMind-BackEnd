@@ -1,0 +1,37 @@
+name: Deploy AtomicaskAPI on push
+on:
+  push:
+    branches:
+      - prod
+jobs:
+  web-deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18.x]
+    steps:
+      - name: Get the latest code
+        uses: actions/checkout@v2.3.2
+        with:
+          repository: SuperStar0718/AtomicMind-BackEnd
+          ref: prod
+          token: ${{ secrets.GIT_TOKEN }}
+      - name: Use Node
+        uses: actions/setup-node@master
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: Update code
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            cd /var/www/vhosts/atomicask.com/api.atomicask.com/
+            sudo git fetch --all
+            sudo git reset --hard origin/prod
+            npm install
+            npm run build
+            cp .htaccess /dist
