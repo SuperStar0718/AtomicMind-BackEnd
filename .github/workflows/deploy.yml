@@ -33,5 +33,5 @@ jobs:
             sudo git fetch --all
             sudo git reset --hard origin/prod
             npm install
-            npm run build
-            cp .htaccess /dist
+            pm2 delete api.atomicask.com
+            pm2 start --name api.atomicask.com npm -- run dev
