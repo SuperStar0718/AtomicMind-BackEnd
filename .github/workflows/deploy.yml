@@ -34,4 +34,4 @@ jobs:
             sudo git reset --hard origin/prod
             npm install
             pm2 delete api.atomicask.com
-            pm2 start --name api.atomicask.com npm -- run dev
+            pm2 start --name api.atomicask.com npm -- run start
