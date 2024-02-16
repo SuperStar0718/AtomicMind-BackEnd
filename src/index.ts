@@ -16,8 +16,10 @@ const app: Application = express();
 // Connect Database
 mongooseConnection();
 
+
 const port = process.env.BACK_PORT || 5000;
 console.log("port", process.env.BACK_PORT);
+
 app.use(cors());
 
 app.get('/', (req: Request, res: Response) => {
