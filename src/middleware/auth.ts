@@ -27,7 +27,6 @@ const auth = (req: IRequest, res: Response, next: NextFunction) => {
       if (error) {
         return res.status(401).json({ msg: 'Token is not valid' });
       } else {
-        console.log('jwt payload:', (decoded as JwtPayload).payload)
         req.email = (decoded as JwtPayload).payload;
         // if ((decoded as JwtPayload).user.role !== 'business') return res.status(HttpStatusCodes.BAD_REQUEST).json({ msg: 'Token is not valid' });
         next();

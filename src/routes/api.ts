@@ -53,7 +53,6 @@ Auth.post("/login", async (req:Request, res:Response) => {
 
 
 Auth.get("/auth",auth, async (req:IRequest, res:Response) => {
-  console.log("req from loaduser", req.email);
   const user =  await User.findOne({email: req.email});
   res.status(200).send(user?.email);
 });
