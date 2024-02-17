@@ -13,7 +13,6 @@ export const register= async (req:any) =>  {
     if( user !== null){
         return null;
     } else{
-        console.log('hashed password', hashedPassword)
         const newUser = new User({
             email,
             password: hashedPassword

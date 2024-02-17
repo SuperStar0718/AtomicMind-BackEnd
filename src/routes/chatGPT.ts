@@ -14,6 +14,21 @@ import { RetrievalQAChain } from "langchain/chains";
 // import the open ai function to load our LLM model
 import { OpenAI } from "@langchain/openai";
 
+import { v4 as uuid } from "uuid";
+
+import { FaissStore } from "@langchain/community/vectorstores/faiss";
+import { ConversationalRetrievalQAChain } from "langchain/chains";
+import { BufferMemory } from "langchain/memory";
+import {
+  ChatPromptTemplate,
+  PromptTemplate,
+  SystemMessagePromptTemplate,
+  AIMessagePromptTemplate,
+  HumanMessagePromptTemplate,
+} from "langchain/prompts";
+import { AIMessage, HumanMessage, SystemMessage } from "langchain/schema";
+import { ChatOpenAI } from "@langchain/openai";
+
 const chatGPT = Router();
 
 // Multer configuration
@@ -29,64 +44,112 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
-
-chatGPT.post("/uploadFile", upload.single("file"), (req, res) => {
-  console.log("req.file", req.file);
-  res.send("File uploaded");
+chatGPT.post("/uploadFiles", upload.any(), (req, res) => {
+  // Access the uploaded files via req.files array
+  console.log(req.files);
+  res.send("Files uploaded successfully");
 });
 
 chatGPT.post("/generateResponse", async (req, res) => {
-  try{
+  try {
+    // Set headers for SSE
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    });
 
+    console.log(req.body);
+    const prompt = req.body.prompt;
     // Call the ChatGPT API here
     // Initialize it with the path to the pdf file
     const loader = new PDFLoader(`uploads/${req.body.file}`);
-  
+
+    // Create encoding to convert token (string) to Uint8Array
+    const encoder = new TextEncoder();
     // Load into docs variable
     const docs = await loader.load();
-  
+
     // Initialize it with chunksize and chunkOverlap
     const splitter = new RecursiveCharacterTextSplitter({
-      chunkSize: 1000,
+      chunkSize: 10000,
       chunkOverlap: 20,
     });
     // created chunks from pdf
     const splittedDocs = await splitter.splitDocuments(docs);
-  
+    /**
+     * The OpenAI instance used for making API calls.
+     * @type {OpenAI}
+     */
+    const streamingModel = new ChatOpenAI({
+      modelName: "gpt-4-turbo-preview",
+      temperature: 0.7,
+      openAIApiKey: process.env.OPENAI_API_KEY,
+      streaming: true,
+      callbacks: [
+        {
+          async handleLLMNewToken(token) {
+            // console.log("Token:", token);
+            res.write(`data: ${JSON.stringify(token)}\n\n`);
+            res.flushHeaders();
+          },
+          async handleLLMEnd() {
+            res.end();
+          },
+        },
+      ],
+    });
+
     // Init open ai embeddings
     const embeddings = new OpenAIEmbeddings();
-  
+
     // Finally store our splitted chunks with open ai embeddings
     const vectorStore = await HNSWLib.fromDocuments(splittedDocs, embeddings);
-  
-    // Create vector store retriever
+
+    // Load the docs into the vector store
+    // const vectorStore = await FaissStore.fromDocuments(
+    //   splittedDocs,
+    //   new OpenAIEmbeddings({ openAIApiKey: process.env.OPENAI_API_KEY })
+    // );
+
     const vectorStoreRetriever = vectorStore.asRetriever();
-  
-    // init the LLM model
-    const model = new OpenAI({
-      modelName: "gpt-3.5-turbo",
-      openAIApiKey: process.env.OPENAI_API_KEY,
+
+    /**
+     * Represents a conversational retrieval QA chain.
+     */
+    const chain = ConversationalRetrievalQAChain.fromLLM(
+      streamingModel,
+      vectorStoreRetriever,
+      {
+        returnSourceDocuments: true,
+        memory: new BufferMemory({
+          memoryKey: "chat_history",
+          inputKey: "question", // The key for the input to the chain
+          outputKey: "text", // The key for the final conversational output of the chain
+          returnMessages: true, // If using with a chat model
+        }),
+      }
+    );
+
+    const messages = [
+      {
+        role: "system",
+        content: `You are ChatGPT, a language model trained to act as chatbot. You are analyzing the data from PDFs. This data should be considered a PDF. You are a general answering assistant that can comply with any request.You always answer the with markdown formatting with paragraph structures.  `,
+      },
+      {
+        role: "user",
+        content: prompt,
+      },
+    ];
+    console.log('propmt', prompt)
+    const response = await chain.call({
+      question:  JSON.stringify(messages) ,
     });
-  
-    // Finally create the chain to connect both and answer questions
-    const chain = RetrievalQAChain.fromLLM(model, vectorStoreRetriever);
-  
-    const question =req.body.query
-  
-    const answer = await chain.call({
-      query: req.body.query,
-    });
-  
-    console.log({
-      question,
-      answer,
-    });
-  
-    res.send({
-      question,
-      answer,
-    });
-  } catch(err){
+    console.log("res", response);
+    // await streams.readable.pipeTo(res.writable);
+    // res.send(await streams.readable);
+    //send response to the client stream.readable
+  } catch (err) {
     console.error(err);
     res.status(500).send("Internal Server Error");
   }
