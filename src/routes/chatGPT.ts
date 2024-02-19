@@ -1,4 +1,6 @@
 import { Router } from "express";
+import User from "../schemas/user.model";
+
 import multer from "multer";
 import path from "path";
 // Get the pdf loader from langchain
@@ -43,10 +45,30 @@ const storage = multer.diskStorage({
   },
 });
 const upload = multer({ storage: storage });
-
-chatGPT.post("/uploadFiles", upload.any(), (req, res) => {
+export interface IFolder{
+  folderName: string;
+  documents: string[];
+}
+chatGPT.post("/uploadFiles", upload.any(), async (req, res) => {
   // Access the uploaded files via req.files array
-  console.log(req.files);
+  console.log("fiels:",req.files);
+  console.log("id:",req.body.id);
+  console.log(req.body.folderName);
+  const files = Array.isArray(req.files) ? req.files : Object.values(req.files);
+  const fileNames = files.map((file) => file.filename);
+  const folderName = req.body.folderName;
+  const data : IFolder[] = [{
+    folderName: folderName,
+    documents: fileNames
+  }];
+
+  //find user and update user data
+  await User.findByIdAndUpdate(
+     req.body.id ,
+     { folders: data } ,
+     { new: true ,useFindAndModify: false },
+  );
+
   res.send("Files uploaded successfully");
 });
 
@@ -141,9 +163,9 @@ chatGPT.post("/generateResponse", async (req, res) => {
         content: prompt,
       },
     ];
-    console.log('propmt', prompt)
+    console.log("propmt", prompt);
     const response = await chain.call({
-      question:  JSON.stringify(messages) ,
+      question: JSON.stringify(messages),
     });
     console.log("res", response);
     // await streams.readable.pipeTo(res.writable);

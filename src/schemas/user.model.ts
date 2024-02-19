@@ -10,6 +10,7 @@ interface IUser extends Document {
 
 const UserSchema: Schema = new Schema(
   {
+    
     email: {
       type: String,
       unique: true,
@@ -18,7 +19,26 @@ const UserSchema: Schema = new Schema(
       type: String,
       required: true,
     },
-  
+    folders: [
+      {
+        folderName: {
+          type: String,
+          required: true,
+        },
+        documents: [
+          {
+            type: String,
+            required:true,
+          },
+        ],
+      },
+    ],
+    documents: [
+      {
+        type: String,
+        required: true,
+      },
+    ]
   },
   { timestamps: true },
 );
