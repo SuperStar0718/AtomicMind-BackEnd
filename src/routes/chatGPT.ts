@@ -45,31 +45,90 @@ const storage = multer.diskStorage({
   },
 });
 const upload = multer({ storage: storage });
-export interface IFolder{
+export interface IFolder {
   folderName: string;
   documents: string[];
 }
 chatGPT.post("/uploadFiles", upload.any(), async (req, res) => {
-  // Access the uploaded files via req.files array
-  console.log("fiels:",req.files);
-  console.log("id:",req.body.id);
-  console.log(req.body.folderName);
-  const files = Array.isArray(req.files) ? req.files : Object.values(req.files);
-  const fileNames = files.map((file) => file.filename);
-  const folderName = req.body.folderName;
-  const data : IFolder[] = [{
-    folderName: folderName,
-    documents: fileNames
-  }];
+  try {
+    const { id } = req.body;
 
-  //find user and update user data
-  await User.findByIdAndUpdate(
-     req.body.id ,
-     { folders: data } ,
-     { new: true ,useFindAndModify: false },
-  );
+    // Find the user
+    const user = await User.findById(id);
 
-  res.send("Files uploaded successfully");
+    if (!user) {
+      throw new Error("User not found");
+    }
+    // Access the uploaded files via req.files array
+    const files = Array.isArray(req.files)
+      ? req.files
+      : Object.values(req.files);
+    const fileNames = files.map((file) => file.filename);
+    const folderName = req.body.folderName;
+    const data: IFolder = {
+      folderName: folderName,
+      documents: fileNames,
+    };
+    // Check if the folder already exists
+    const folder = user.folders.find(
+      (folder) => folder.folderName === data.folderName
+    );
+
+    if (folder) {
+      // If the folder exists, add to its documents array
+      await User.updateOne(
+        { _id: id, 'folders.folderName': data.folderName },
+        { $addToSet: { 'folders.$.documents': { $each: data.documents } } },
+      );
+    } else {
+      // If the folder doesn't exist, add a new folder
+      await User.findByIdAndUpdate(
+        id,
+        { $push: { folders: data } },
+        { new: true, useFindAndModify: false }
+      );
+    }
+
+    res.send("Files uploaded successfully");
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Internal Server Error");
+  }
+});
+
+chatGPT.post("/deleteFolder", async (req, res) => {
+  try {
+    console.log(req.body);
+    const folderName = req.body.folderName;
+    const id = req.body.id;
+    await User.findByIdAndUpdate(
+      id,
+      { $pull: { folders: { folderName: folderName } } },
+      { new: true, useFindAndModify: false }
+    );
+    res.send("Folder deleted successfully");
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Internal Server Error");
+  }
+});
+
+chatGPT.post("/deleteDocument", async (req, res) => {
+  try {
+    console.log(req.body);
+    const documentName = req.body.documentName;
+    const folderName = req.body.folderName;
+    const id = req.body.id;
+   
+    await User.updateOne(
+      { _id: id, 'folders.folderName': folderName },
+      { $pull: { 'folders.$.documents': documentName } },
+    );
+    res.send("Folder deleted successfully");
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Internal Server Error");
+  }
 });
 
 chatGPT.post("/generateResponse", async (req, res) => {

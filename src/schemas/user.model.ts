@@ -4,6 +4,13 @@ import bcrypt from 'bcrypt';
 interface IUser extends Document {
   email: string;
   password: string;
+  folders: [
+    {
+      folderName: string;
+      documents: string[];
+    },
+  ];
+  documents: string[];
   createdAt: Date;
   updatedAt: Date;
 }
