@@ -156,7 +156,17 @@ chatGPT.post("/generateResponse", async (req, res) => {
     const type = req.body.type;
     const name = req.body.name;
 
-    let splittedDocs;
+    let splittedDocs = [];
+    const processDocuments = async (fileName) => {
+      const loader = new PDFLoader(`uploads/${fileName}`);
+      const docs = await loader.load();
+      const splitter = new RecursiveCharacterTextSplitter({
+        chunkSize: 10000,
+        chunkOverlap: 20,
+      });
+      return splitter.splitDocuments(docs);
+    };
+
     // Call the ChatGPT API here
     if (type === "document") {
       const loader = new PDFLoader(`uploads/${name}`);
@@ -166,7 +176,25 @@ chatGPT.post("/generateResponse", async (req, res) => {
         chunkOverlap: 20,
       });
       splittedDocs = await splitter.splitDocuments(docs);
+    } else if (type === "folder") {
+      const documents = await User.findById(id, {
+        folders: { $elemMatch: { folderName: name } },
+      });
+      const fileNames = documents.folders[0].documents;
+
+      const docPromises = fileNames.map(processDocuments);
+      splittedDocs = await Promise.all(docPromises).then((docs) => docs.flat());
     } else {
+      const user = await User.findById(id);
+      user.folders.forEach(async (folder) => {
+        const fileNames = folder.documents;
+        const docPromises = fileNames.map(processDocuments);
+        splittedDocs = await Promise.all(docPromises).then((docs) => docs.flat());
+      });
+
+      const docPromises = user.documents.map(processDocuments);
+      splittedDocs = await Promise.all(docPromises).then((docs) => docs.flat());
+      
     }
     /**
      * The OpenAI instance used for making API calls.
@@ -223,9 +251,14 @@ chatGPT.post("/generateResponse", async (req, res) => {
     );
 
     const user = await User.findById(id);
-    const chat_history = user.history.find(
-      (item) => item.name === name && item.type === type
-    );
+    let chat_history;
+    if (type === "allDocuments") {
+      chat_history = user.history.find((item) => item.type === type);
+    } else {
+      chat_history = user.history.find(
+        (item) => item.name === name && item.type === type
+      );
+    }
     console.log("chat_history", chat_history);
 
     const messages = [
@@ -294,9 +327,14 @@ chatGPT.post("/loadChatHistory", async (req, res) => {
     const type = req.body.type;
     const name = req.body.name;
     const user = await User.findById(id);
-    const chat_history = user.history.find(
-      (item) => item.name === name && item.type === type
-    );
+    let chat_history;
+    if (type === "allDocuments") {
+      chat_history = user.history.find((item) => item.type === type);
+    } else {
+      chat_history = user.history.find(
+        (item) => item.name === name && item.type === type
+      );
+    }
     console.log("chat_history", chat_history);
     res.send(chat_history ? chat_history.history : []);
   } catch (err) {
@@ -305,24 +343,21 @@ chatGPT.post("/loadChatHistory", async (req, res) => {
   }
 });
 
-chatGPT.post('/clearHistory', async (req, res) => {
+chatGPT.post("/clearHistory", async (req, res) => {
   try {
     const id = req.body.id;
     const type = req.body.type;
     const name = req.body.name;
-    await User
-      .updateOne(
-        { _id: id, "history.name": name, "history.type": type },
-        { $set: { "history.$[elem].history": [] } },
-        { arrayFilters: [{ "elem.name": name, "elem.type": type }] }
-      );
+    await User.updateOne(
+      { _id: id, "history.name": name, "history.type": type },
+      { $set: { "history.$[elem].history": [] } },
+      { arrayFilters: [{ "elem.name": name, "elem.type": type }] }
+    );
     res.send("Chat history cleared successfully");
   } catch (err) {
     console.error(err);
     res.status(500).send("Internal Server Error");
   }
-}
-);
-
+});
 
 export default chatGPT;
