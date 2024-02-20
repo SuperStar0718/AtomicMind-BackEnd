@@ -305,4 +305,24 @@ chatGPT.post("/loadChatHistory", async (req, res) => {
   }
 });
 
+chatGPT.post('/clearHistory', async (req, res) => {
+  try {
+    const id = req.body.id;
+    const type = req.body.type;
+    const name = req.body.name;
+    await User
+      .updateOne(
+        { _id: id, "history.name": name, "history.type": type },
+        { $set: { "history.$[elem].history": [] } },
+        { arrayFilters: [{ "elem.name": name, "elem.type": type }] }
+      );
+    res.send("Chat history cleared successfully");
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Internal Server Error");
+  }
+}
+);
+
+
 export default chatGPT;
