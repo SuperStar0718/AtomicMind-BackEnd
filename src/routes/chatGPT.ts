@@ -156,7 +156,6 @@ chatGPT.post("/generateResponse", async (req, res) => {
     const type = req.body.type;
     const name = req.body.name;
 
-    
     let splittedDocs;
     // Call the ChatGPT API here
     if (type === "document") {
@@ -224,7 +223,9 @@ chatGPT.post("/generateResponse", async (req, res) => {
     );
 
     const user = await User.findById(id);
-    const chat_history = user.history.find(item => item.name === name && item.type === type);
+    const chat_history = user.history.find(
+      (item) => item.name === name && item.type === type
+    );
     console.log("chat_history", chat_history);
 
     const messages = [
@@ -232,7 +233,7 @@ chatGPT.post("/generateResponse", async (req, res) => {
         role: "system",
         content: `You are ChatGPT, a language model trained to act as chatbot. You are analyzing the data from PDFs. This data should be considered a PDF. You are a general answering assistant that can comply with any request.You always answer the with markdown formatting with paragraph structures.  `,
       },
-      chat_history ? {...chat_history.history} : [],
+      chat_history ? { ...chat_history.history } : [],
       {
         role: "user",
         content: prompt,
@@ -243,7 +244,7 @@ chatGPT.post("/generateResponse", async (req, res) => {
       question: JSON.stringify(messages),
     });
     // console.log("res:", response);
-   
+
     if (chat_history) {
       console.log("exists:", type, name);
       await User.findOneAndUpdate(
@@ -280,6 +281,24 @@ chatGPT.post("/generateResponse", async (req, res) => {
     // await streams.readable.pipeTo(res.writable);
     // res.send(await streams.readable);
     //send response to the client stream.readable
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Internal Server Error");
+  }
+});
+
+chatGPT.post("/loadChatHistory", async (req, res) => {
+  try {
+    console.log(req.body);
+    const id = req.body.id;
+    const type = req.body.type;
+    const name = req.body.name;
+    const user = await User.findById(id);
+    const chat_history = user.history.find(
+      (item) => item.name === name && item.type === type
+    );
+    console.log("chat_history", chat_history);
+    res.send(chat_history ? chat_history.history : []);
   } catch (err) {
     console.error(err);
     res.status(500).send("Internal Server Error");
