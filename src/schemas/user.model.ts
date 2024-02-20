@@ -1,6 +1,16 @@
 import mongoose, { Document, Schema } from 'mongoose';
 import bcrypt from 'bcrypt';
 
+
+interface IChatHitory{
+  role:string;
+  content:string;
+}
+interface IHistory{
+  type: string;
+  name:string;
+  history: IChatHitory[];
+}
 interface IUser extends Document {
   email: string;
   password: string;
@@ -11,6 +21,7 @@ interface IUser extends Document {
     },
   ];
   documents: string[];
+  history: IHistory[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -46,6 +57,30 @@ const UserSchema: Schema = new Schema(
         required: true,
       },
     ]
+    ,
+    history: [
+      {
+        type: {
+          type: String,
+          required: true,
+        },
+        name: {
+          type: String,
+        },
+        history: [
+          {
+            role: {
+              type: String,
+              required: true,
+            },
+            content: {
+              type: String,
+              required: true,
+            },
+          },
+        ],
+      },
+    ],
   },
   { timestamps: true },
 );

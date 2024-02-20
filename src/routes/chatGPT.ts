@@ -30,6 +30,7 @@ import {
 } from "langchain/prompts";
 import { AIMessage, HumanMessage, SystemMessage } from "langchain/schema";
 import { ChatOpenAI } from "@langchain/openai";
+import mongoose from "mongoose";
 
 const chatGPT = Router();
 
@@ -65,28 +66,37 @@ chatGPT.post("/uploadFiles", upload.any(), async (req, res) => {
       : Object.values(req.files);
     const fileNames = files.map((file) => file.filename);
     const folderName = req.body.folderName;
-    const data: IFolder = {
-      folderName: folderName,
-      documents: fileNames,
-    };
-    // Check if the folder already exists
-    const folder = user.folders.find(
-      (folder) => folder.folderName === data.folderName
-    );
-
-    if (folder) {
-      // If the folder exists, add to its documents array
-      await User.updateOne(
-        { _id: id, 'folders.folderName': data.folderName },
-        { $addToSet: { 'folders.$.documents': { $each: data.documents } } },
-      );
+    console.log("folderName", folderName);
+    if (
+      folderName == "undefined" ||
+      folderName == "" ||
+      folderName == undefined
+    ) {
+      await User.updateOne({ _id: id }, { $push: { documents: fileNames } });
     } else {
-      // If the folder doesn't exist, add a new folder
-      await User.findByIdAndUpdate(
-        id,
-        { $push: { folders: data } },
-        { new: true, useFindAndModify: false }
+      const data: IFolder = {
+        folderName: folderName,
+        documents: fileNames,
+      };
+      // Check if the folder already exists
+      const folder = user.folders.find(
+        (folder) => folder.folderName === data.folderName
       );
+
+      if (folder) {
+        // If the folder exists, add to its documents array
+        await User.updateOne(
+          { _id: id, "folders.folderName": data.folderName },
+          { $addToSet: { "folders.$.documents": { $each: data.documents } } }
+        );
+      } else {
+        // If the folder doesn't exist, add a new folder
+        await User.findByIdAndUpdate(
+          id,
+          { $push: { folders: data } },
+          { new: true, useFindAndModify: false }
+        );
+      }
     }
 
     res.send("Files uploaded successfully");
@@ -119,10 +129,10 @@ chatGPT.post("/deleteDocument", async (req, res) => {
     const documentName = req.body.documentName;
     const folderName = req.body.folderName;
     const id = req.body.id;
-   
+
     await User.updateOne(
-      { _id: id, 'folders.folderName': folderName },
-      { $pull: { 'folders.$.documents': documentName } },
+      { _id: id, "folders.folderName": folderName },
+      { $pull: { "folders.$.documents": documentName } }
     );
     res.send("Folder deleted successfully");
   } catch (err) {
@@ -141,23 +151,24 @@ chatGPT.post("/generateResponse", async (req, res) => {
     });
 
     console.log(req.body);
-    const prompt = req.body.prompt;
+    const prompt = req.body.prompt.content;
+    const id = req.body.id;
+    const type = req.body.type;
+    const name = req.body.name;
+
+    
+    let splittedDocs;
     // Call the ChatGPT API here
-    // Initialize it with the path to the pdf file
-    const loader = new PDFLoader(`uploads/${req.body.file}`);
-
-    // Create encoding to convert token (string) to Uint8Array
-    const encoder = new TextEncoder();
-    // Load into docs variable
-    const docs = await loader.load();
-
-    // Initialize it with chunksize and chunkOverlap
-    const splitter = new RecursiveCharacterTextSplitter({
-      chunkSize: 10000,
-      chunkOverlap: 20,
-    });
-    // created chunks from pdf
-    const splittedDocs = await splitter.splitDocuments(docs);
+    if (type === "document") {
+      const loader = new PDFLoader(`uploads/${name}`);
+      const docs = await loader.load();
+      const splitter = new RecursiveCharacterTextSplitter({
+        chunkSize: 10000,
+        chunkOverlap: 20,
+      });
+      splittedDocs = await splitter.splitDocuments(docs);
+    } else {
+    }
     /**
      * The OpenAI instance used for making API calls.
      * @type {OpenAI}
@@ -212,21 +223,60 @@ chatGPT.post("/generateResponse", async (req, res) => {
       }
     );
 
+    const user = await User.findById(id);
+    const chat_history = user.history.find(item => item.name === name && item.type === type);
+    console.log("chat_history", chat_history);
+
     const messages = [
       {
         role: "system",
         content: `You are ChatGPT, a language model trained to act as chatbot. You are analyzing the data from PDFs. This data should be considered a PDF. You are a general answering assistant that can comply with any request.You always answer the with markdown formatting with paragraph structures.  `,
       },
+      chat_history ? {...chat_history.history} : [],
       {
         role: "user",
         content: prompt,
       },
     ];
-    console.log("propmt", prompt);
+    console.log("messages", messages);
     const response = await chain.call({
       question: JSON.stringify(messages),
     });
-    console.log("res", response);
+    // console.log("res:", response);
+   
+    if (chat_history) {
+      console.log("exists:", type, name);
+      await User.findOneAndUpdate(
+        { _id: id, "history.name": name, "history.type": type },
+        {
+          $push: {
+            "history.$[elem].history": [
+              { role: "user", content: prompt },
+              { role: "assistant", content: response.text },
+            ],
+          },
+        },
+        { arrayFilters: [{ "elem.name": name, "elem.type": type }] }
+      );
+    } else {
+      console.log("doesnt exists:", type, name);
+      await User.updateOne(
+        { _id: id },
+        {
+          $addToSet: {
+            history: {
+              type: type,
+              name: name,
+              history: [
+                { role: "user", content: prompt },
+                { role: "assistant", content: response.text },
+              ],
+            },
+          },
+        }
+      );
+    }
+
     // await streams.readable.pipeTo(res.writable);
     // res.send(await streams.readable);
     //send response to the client stream.readable
