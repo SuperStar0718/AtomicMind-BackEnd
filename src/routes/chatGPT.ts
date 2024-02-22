@@ -16,6 +16,9 @@ import { RetrievalQAChain } from "langchain/chains";
 // import the open ai function to load our LLM model
 import { OpenAI } from "@langchain/openai";
 
+import { Pinecone } from "@pinecone-database/pinecone";
+import { PineconeStore } from "@langchain/pinecone";
+
 import { v4 as uuid } from "uuid";
 
 import { FaissStore } from "@langchain/community/vectorstores/faiss";
@@ -161,8 +164,8 @@ chatGPT.post("/generateResponse", async (req, res) => {
       const loader = new PDFLoader(`uploads/${fileName}`);
       const docs = await loader.load();
       const splitter = new RecursiveCharacterTextSplitter({
-        chunkSize: 10000,
-        chunkOverlap: 20,
+        chunkSize: 1000,
+        chunkOverlap: 200,
       });
       return splitter.splitDocuments(docs);
     };
@@ -172,8 +175,8 @@ chatGPT.post("/generateResponse", async (req, res) => {
       const loader = new PDFLoader(`uploads/${name}`);
       const docs = await loader.load();
       const splitter = new RecursiveCharacterTextSplitter({
-        chunkSize: 10000,
-        chunkOverlap: 20,
+        chunkSize: 1000,
+        chunkOverlap: 200,
       });
       splittedDocs = await splitter.splitDocuments(docs);
     } else if (type === "folder") {
@@ -194,7 +197,6 @@ chatGPT.post("/generateResponse", async (req, res) => {
 
       const docPromises = user.documents.map(processDocuments);
       splittedDocs = await Promise.all(docPromises).then((docs) => docs.flat());
-      
     }
     /**
      * The OpenAI instance used for making API calls.
@@ -219,11 +221,31 @@ chatGPT.post("/generateResponse", async (req, res) => {
       ],
     });
 
-    // Init open ai embeddings
-    const embeddings = new OpenAIEmbeddings();
+    // Instantiate a new Pinecone client, which will automatically read the
+// env vars: PINECONE_API_KEY and PINECONE_ENVIRONMENT which come from
+// the Pinecone dashboard at https://app.pinecone.io
 
-    // Finally store our splitted chunks with open ai embeddings
-    const vectorStore = await HNSWLib.fromDocuments(splittedDocs, embeddings);
+const pinecone = new Pinecone({
+  apiKey: process.env.PINECONE_API_KEY!
+});
+
+const pineconeIndex = pinecone.Index(process.env.PINECONE_INDEX_NAME!);
+// console.log('pineconeIndex', pineconeIndex);
+const embeddings = new OpenAIEmbeddings();
+const pineconeStore = new PineconeStore(embeddings, { pineconeIndex });
+
+//embed the PDF documents
+const vectorStore = await PineconeStore.fromDocuments(splittedDocs, embeddings, {
+  pineconeIndex: pineconeIndex,
+  namespace: 'atomicask',
+  textKey: 'text',
+});
+
+    // // Init open ai embeddings
+    // const embeddings = new OpenAIEmbeddings();
+
+    // // Finally store our splitted chunks with open ai embeddings
+    // const vectorStore = await HNSWLib.fromDocuments(splittedDocs, embeddings);
 
     // Load the docs into the vector store
     // const vectorStore = await FaissStore.fromDocuments(
