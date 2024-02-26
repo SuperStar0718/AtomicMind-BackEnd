@@ -202,7 +202,7 @@ chatGPT.post("/generateResponse", async (req, res) => {
      */
     const streamingModel = new ChatOpenAI({
       modelName: "gpt-4-turbo-preview",
-      temperature: 0.7,
+      temperature: 0.3,
       openAIApiKey: process.env.OPENAI_API_KEY,
       streaming: true,
       callbacks: [
