@@ -1,6 +1,6 @@
 import { Router } from "express";
 import User from "../schemas/user.model";
-
+import fs from "fs";
 import multer from "multer";
 import path from "path";
 // Get the pdf loader from langchain
@@ -34,6 +34,11 @@ import {
 import { AIMessage, HumanMessage, SystemMessage } from "langchain/schema";
 import { ChatOpenAI } from "@langchain/openai";
 import mongoose from "mongoose";
+import { initPineconeClient } from "../lib/pinecone-clinet";
+import { embedAndStoreDocs } from "../lib/vector-store";
+import { nonStreamModel } from "../lib/llm";
+import { QA_TEMPLATE } from "../lib/prompt-templates";
+import { STANDALONE_QUESTION_TEMPLATE } from "../lib/prompt-templates";
 
 const chatGPT = Router();
 
@@ -175,8 +180,8 @@ chatGPT.post("/generateResponse", async (req, res) => {
       const loader = new PDFLoader(`uploads/${name}`);
       const docs = await loader.load();
       const splitter = new RecursiveCharacterTextSplitter({
-        chunkSize: 1000,
-        chunkOverlap: 200,
+        chunkSize: 100,
+        chunkOverlap: 10,
       });
       splittedDocs = await splitter.splitDocuments(docs);
     } else if (type === "folder") {
@@ -192,7 +197,9 @@ chatGPT.post("/generateResponse", async (req, res) => {
       user.folders.forEach(async (folder) => {
         const fileNames = folder.documents;
         const docPromises = fileNames.map(processDocuments);
-        splittedDocs = await Promise.all(docPromises).then((docs) => docs.flat());
+        splittedDocs = await Promise.all(docPromises).then((docs) =>
+          docs.flat()
+        );
       });
 
       const docPromises = user.documents.map(processDocuments);
@@ -204,7 +211,7 @@ chatGPT.post("/generateResponse", async (req, res) => {
      */
     const streamingModel = new ChatOpenAI({
       modelName: "gpt-4-turbo-preview",
-      temperature: 0.7,
+      temperature: 0.1,
       openAIApiKey: process.env.OPENAI_API_KEY,
       streaming: true,
       callbacks: [
@@ -222,30 +229,30 @@ chatGPT.post("/generateResponse", async (req, res) => {
     });
 
     // Instantiate a new Pinecone client, which will automatically read the
-// env vars: PINECONE_API_KEY and PINECONE_ENVIRONMENT which come from
-// the Pinecone dashboard at https://app.pinecone.io
+    // env vars: PINECONE_API_KEY and PINECONE_ENVIRONMENT which come from
+    // the Pinecone dashboard at https://app.pinecone.io
 
-const pinecone = new Pinecone({
-  apiKey: process.env.PINECONE_API_KEY!
-});
+    // const pinecone = new Pinecone({
+    //   apiKey: process.env.PINECONE_API_KEY!
+    // });
 
-const pineconeIndex = pinecone.Index(process.env.PINECONE_INDEX_NAME!);
-// console.log('pineconeIndex', pineconeIndex);
-const embeddings = new OpenAIEmbeddings();
-const pineconeStore = new PineconeStore(embeddings, { pineconeIndex });
+    // const pineconeIndex = pinecone.Index(process.env.PINECONE_INDEX_NAME!);
+    // // console.log('pineconeIndex', pineconeIndex);
+    const embeddings = new OpenAIEmbeddings();
+    // const pineconeStore = new PineconeStore(embeddings, { pineconeIndex });
 
-//embed the PDF documents
-const vectorStore = await PineconeStore.fromDocuments(splittedDocs, embeddings, {
-  pineconeIndex: pineconeIndex,
-  namespace: 'atomicask',
-  textKey: 'text',
-});
+    // //embed the PDF documents
+    // const vectorStore = await PineconeStore.fromDocuments(splittedDocs, embeddings, {
+    //   pineconeIndex: pineconeIndex,
+    //   namespace: 'atomicask',
+    //   textKey: 'text',
+    // });
 
-    // // Init open ai embeddings
-    // const embeddings = new OpenAIEmbeddings();
+    const pinecone = await initPineconeClient();
+    // const vectorStore = await embedAndStoreDocs(pinecone, splittedDocs);
 
-    // // Finally store our splitted chunks with open ai embeddings
-    // const vectorStore = await HNSWLib.fromDocuments(splittedDocs, embeddings);
+    // Finally store our splitted chunks with open ai embeddings
+    const vectorStore = await HNSWLib.fromDocuments(splittedDocs, embeddings);
 
     // Load the docs into the vector store
     // const vectorStore = await FaissStore.fromDocuments(
@@ -262,6 +269,9 @@ const vectorStore = await PineconeStore.fromDocuments(splittedDocs, embeddings, 
       streamingModel,
       vectorStoreRetriever,
       {
+        questionGeneratorChainOptions: {
+          llm: nonStreamModel,
+        },
         returnSourceDocuments: true,
         memory: new BufferMemory({
           memoryKey: "chat_history",
@@ -296,9 +306,14 @@ const vectorStore = await PineconeStore.fromDocuments(splittedDocs, embeddings, 
     ];
     console.log("messages", messages);
     const response = await chain.call({
-      question: JSON.stringify(messages),
+      question: prompt,
+      chat_history: chat_history,
     });
     // console.log("res:", response);
+    // await fs.promises.writeFile(
+    //   path.join(__dirname, "../chat_history.json"),
+    //   JSON.stringify(response)
+    // );
 
     if (chat_history) {
       console.log("exists:", type, name);
