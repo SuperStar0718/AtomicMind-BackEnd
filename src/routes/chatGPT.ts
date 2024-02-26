@@ -161,8 +161,8 @@ chatGPT.post("/generateResponse", async (req, res) => {
       const loader = new PDFLoader(`uploads/${fileName}`);
       const docs = await loader.load();
       const splitter = new RecursiveCharacterTextSplitter({
-        chunkSize: 500,
-        chunkOverlap: 200,
+        chunkSize: 10000,
+        chunkOverlap: 2000,
       });
       return splitter.splitDocuments(docs);
     };
@@ -172,8 +172,8 @@ chatGPT.post("/generateResponse", async (req, res) => {
       const loader = new PDFLoader(`uploads/${name}`);
       const docs = await loader.load();
       const splitter = new RecursiveCharacterTextSplitter({
-        chunkSize: 500,
-        chunkOverlap: 200,
+        chunkSize: 10000,
+        chunkOverlap: 2000,
       });
       splittedDocs = await splitter.splitDocuments(docs);
     } else if (type === "folder") {
