@@ -174,11 +174,11 @@ chatGPT.post("/deleteDocument", async (req, res) => {
 chatGPT.post("/generateResponse", async (req, res) => {
   try {
     // Set headers for SSE
-    // res.writeHead(200, {
-    //   "Content-Type": "text/event-stream",
-    //   "Cache-Control": "no-cache",
-    //   Connection: "keep-alive",
-    // });
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    });
 
     console.log(req.body);
     const prompt = req.body.prompt.content;
@@ -190,21 +190,21 @@ chatGPT.post("/generateResponse", async (req, res) => {
 
     const model = new ChatAnthropic({
       anthropicApiKey: process.env.ANTHROPIC_API_KEY,
-      temperature: 0.8,
+      temperature: 0.9,
       modelName: "claude-2.1",
-      // streaming: true,
-      // callbacks: [
-      //   {
-      //     async handleLLMNewToken(token) {
-      //       // console.log("Token:", token);
-      //       res.write(`data: ${JSON.stringify(token)}\n\n`);
-      //       res.flushHeaders();
-      //     },
-      //     async handleLLMEnd() {
-      //       res.end();
-      //     },
-      //   },
-      // ],
+      streaming: true,
+      callbacks: [
+        {
+          async handleLLMNewToken(token) {
+            // console.log("Token:", token);
+            res.write(`data: ${JSON.stringify(token)}\n\n`);
+            res.flushHeaders();
+          },
+          async handleLLMEnd() {
+            res.end();
+          },
+        },
+      ],
     });
 
     // const embeddings = new OpenAIEmbeddings();
@@ -216,79 +216,52 @@ chatGPT.post("/generateResponse", async (req, res) => {
       splittedDocs,
       new OpenAIEmbeddings()
     );
+    const vectorStoreRetriever = vectorStore.asRetriever(4);
 
     // Load the docs into the vector store
     // const vectorStore = await FaissStore.fromDocuments(
     //   splittedDocs,
     //   new OpenAIEmbeddings({ openAIApiKey: process.env.OPENAI_API_KEY })
     // );
-
-    const vectorStoreRetriever = vectorStore.asRetriever(4);
-    // console.log('vectorStoreRetriever:', vectorStoreRetriever)
-
-    const doc = await vectorStoreRetriever.invoke("who is maksym?");
-
-
-    const questionAnsweringPrompt = ChatPromptTemplate.fromMessages([
-      ["system", SYSTEM_TEMPLATE],
-      new MessagesPlaceholder("messages"),
-    ]);
+   /**
+     * Represents a conversational retrieval QA chain.
+     */
+   const chain = ConversationalRetrievalQAChain.fromLLM(
+    model,
+    vectorStoreRetriever,
+    {
+      qaTemplate: QA_TEMPLATE,
+      questionGeneratorTemplate: STANDALONE_QUESTION_TEMPLATE,
+      questionGeneratorChainOptions: {
+        llm: nonStreamModel,
+      },
+      returnSourceDocuments: true,
+      memory: new BufferMemory({
+        memoryKey: "chat_history",
+        inputKey: "question", // The key for the input to the chain
+        outputKey: "text", // The key for the final conversational output of the chain
+        returnMessages: true, // If using with a chat model
+      }),
+    }
+  );
 
     const chat_history = await getChatHistory(type, id, name);
     // console.log("chat_history:", chat_history);
-
-
-
-
-    const queryTransformingRetrieverChain = RunnableBranch.from([
-      
-      queryTransformPrompt
-        .pipe(model)
-        .pipe(new StringOutputParser())
-        .pipe(vectorStoreRetriever),
-    ]).withConfig({ runName: "chat_retriever_chain" });
-
-    const documentChain = await createStuffDocumentsChain({
-      llm: model,
-      prompt: questionAnsweringPrompt,
+    const chatHistory = ConversationalRetrievalQAChain.getChatHistoryString(
+      chat_history.map((m) => {
+        if (m.role == 'user') {
+          return new HumanChatMessage(m.content);
+        }
+  
+        return new AIChatMessage(m.content);
+      })
+    );
+    const response = await chain.call({
+      question: prompt,
+      chat_history: chatHistory,
     });
 
-    const docs = await vectorStoreRetriever.invoke("what is the title of chapter 1?");
-    // console.log('docs:',docs);
-    const result = await documentChain.invoke({
-      messages: [new HumanMessage("what is the title of chapter 1?")],
-      context: docs,
-    });
 
-    console.log('result:', result)
-    return;
-
-    const conversationalRetrievalChain = RunnablePassthrough.assign({
-      context: queryTransformingRetrieverChain,
-    }).assign({
-      answer: documentChain,
-    });
-
-    const messages = generateChatHisotry(chat_history, prompt);
-    console.log('messages:', messages)
-    const stream = await conversationalRetrievalChain.stream({
-      messages: [
-        new HumanMessage("Can LangSmith help test my LLM applications?"),
-        new AIMessage(
-          "Yes, LangSmith can help test and evaluate your LLM applications. It allows you to quickly edit examples and add them to datasets to expand the surface area of your evaluation sets or to fine-tune a model for improved quality or reduced costs. Additionally, LangSmith can be used to monitor your application, log all traces, visualize latency and token usage statistics, and troubleshoot specific issues as they arise."
-        ),
-        new HumanMessage("Tell me more!"),
-      ],
-    });
-    let response = "";
-    for await (const chunk of stream) {
-      console.log('chunk:', chunk);
-      // response += chunk.answer;
-      // res.write(`data: ${JSON.stringify(chunk.text)}\n\n`);
-      // res.flushHeaders();
-    }
-    // res.end();
-    console.log('response:', response)
 
     await updateChatHistory(type, name, id, prompt, response, chat_history);
   } catch (err) {
