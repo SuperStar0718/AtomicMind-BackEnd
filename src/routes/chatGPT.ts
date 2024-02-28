@@ -5,12 +5,16 @@ import multer from "multer";
 import path from "path";
 // Get the pdf loader from langchain
 import { PDFLoader } from "langchain/document_loaders/fs/pdf";
+
+import { AIChatMessage, HumanChatMessage } from 'langchain/schema';
+
 // import the RecursiveCharacterTextSplitter from langchain
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 // We will use open ai embeddings from langchain and import it
 import { OpenAIEmbeddings } from "@langchain/openai";
 // Use HNSWLib as our vector db
 import { HNSWLib } from "@langchain/community/vectorstores/hnswlib";
+import { ChatAnthropic } from "@langchain/anthropic";
 // import the chain for connecting llm with vectore store
 import { RetrievalQAChain } from "langchain/chains";
 // import the open ai function to load our LLM model
@@ -183,8 +187,8 @@ chatGPT.post("/generateResponse", async (req, res) => {
       const docs = await loader.load();
       const splitter = new RecursiveCharacterTextSplitter({
 
-        chunkSize: 100,
-        chunkOverlap: 10,
+        chunkSize: 100000,
+        chunkOverlap: 20000,
 
       });
       splittedDocs = await splitter.splitDocuments(docs);
@@ -209,6 +213,25 @@ chatGPT.post("/generateResponse", async (req, res) => {
       const docPromises = user.documents.map(processDocuments);
       splittedDocs = await Promise.all(docPromises).then((docs) => docs.flat());
     }
+
+    const model = new ChatAnthropic({
+      anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+      temperature: 0.8,
+      modelName: "claude-2.1",
+      streaming: true,
+      callbacks: [
+        {
+          async handleLLMNewToken(token) {
+            // console.log("Token:", token);
+            res.write(`data: ${JSON.stringify(token)}\n\n`);
+            res.flushHeaders();
+          },
+          async handleLLMEnd() {
+            res.end();
+          },
+        },
+      ],
+    });
     /**
      * The OpenAI instance used for making API calls.
      * @type {OpenAI}
@@ -272,20 +295,22 @@ chatGPT.post("/generateResponse", async (req, res) => {
      * Represents a conversational retrieval QA chain.
      */
     const chain = ConversationalRetrievalQAChain.fromLLM(
-      streamingModel,
+      model,
       vectorStoreRetriever,
-      {
-        questionGeneratorChainOptions: {
-          llm: nonStreamModel,
-        },
-        returnSourceDocuments: true,
-        memory: new BufferMemory({
-          memoryKey: "chat_history",
-          inputKey: "question", // The key for the input to the chain
-          outputKey: "text", // The key for the final conversational output of the chain
-          returnMessages: true, // If using with a chat model
-        }),
-      }
+      // {
+      //   qaTemplate: QA_TEMPLATE,
+      //   questionGeneratorTemplate: STANDALONE_QUESTION_TEMPLATE,
+      //   questionGeneratorChainOptions: {
+      //     llm: nonStreamModel,
+      //   },
+      //   returnSourceDocuments: true,
+      //   memory: new BufferMemory({
+      //     memoryKey: "chat_history",
+      //     inputKey: "question", // The key for the input to the chain
+      //     outputKey: "text", // The key for the final conversational output of the chain
+      //     returnMessages: true, // If using with a chat model
+      //   }),
+      // }
     );
 
     const user = await User.findById(id);
@@ -302,57 +327,69 @@ chatGPT.post("/generateResponse", async (req, res) => {
     const messages = [
       {
         role: "system",
-        content: `You are ChatGPT, a language model trained to act as chatbot. You are analyzing the data from PDFs. This data should be considered a PDF. You are a general answering assistant that can comply with any request.You always answer the with markdown formatting with paragraph structures.  `,
+        content: `You are ChatGPT, a language model trained to act as chatbot. You are analyzing the data from PDFs   You are always right. So Remember this, Don't say you don't have enough context and unfortunately ... .
+        You always answer the with markdown formatting with paragraph structures.  `,
       },
-      chat_history ? { ...chat_history.history } : [],
+      // chat_history ? { ...chat_history.history } : [],
       {
         role: "user",
         content: prompt,
       },
     ];
-    console.log("messages", messages);
+
+    const chatHistory = ConversationalRetrievalQAChain.getChatHistoryString(
+      chat_history.history.map((m) => {
+        if (m.role == 'user') {
+          return new HumanChatMessage(m.content);
+        }
+  
+        return new AIChatMessage(m.content);
+      })
+    );
+
+    // console.log("messages", messages);
     const response = await chain.call({
       question: prompt,
-      chat_history: chat_history,
+      chat_history: chatHistory,
     });
-    // console.log("res:", response);
+    console.log("res:", response);
     // await fs.promises.writeFile(
     //   path.join(__dirname, "../chat_history.json"),
     //   JSON.stringify(response)
     // );
 
-    if (chat_history) {
-      console.log("exists:", type, name);
-      await User.findOneAndUpdate(
-        { _id: id, "history.name": name, "history.type": type },
-        {
-          $push: {
-            "history.$[elem].history": [
-              { role: "user", content: prompt },
-              { role: "assistant", content: response.text },
-            ],
-          },
-        },
-        { arrayFilters: [{ "elem.name": name, "elem.type": type }] }
-      );
-    } else {
-      console.log("doesnt exists:", type, name);
-      await User.updateOne(
-        { _id: id },
-        {
-          $addToSet: {
-            history: {
-              type: type,
-              name: name,
-              history: [
-                { role: "user", content: prompt },
-                { role: "assistant", content: response.text },
-              ],
-            },
-          },
-        }
-      );
-    }
+    // if (chat_history) {
+    //   console.log("exists:", type, name);
+    //   await User.findOneAndUpdate(
+    //     { _id: id, "history.name": name, "history.type": type },
+    //     {
+    //       $push: {
+    //         "history.$[elem].history": [
+    //           { role: "user", content: prompt },
+    //           { role: "assistant", content: response.text },
+    //         ],
+    //       },
+    //     },
+    //     { arrayFilters: [{ "elem.name": name, "elem.type": type }] }
+    //   );
+    // } else {
+    //   console.log("doesnt exists:", type, name);
+    //   await User.updateOne(
+    //     { _id: id },
+    //     {
+    //       $addToSet: {
+    //         history: {
+    //           type: type,
+    //           name: name,
+    //           history: [
+    //             { role: "user", content: prompt },
+    //             { role: "assistant", content: response.text },
+    //           ],
+    //         },
+    //       },
+    //     }
+    //   );
+    // }
 
     // await streams.readable.pipeTo(res.writable);
     // res.send(await streams.readable);
