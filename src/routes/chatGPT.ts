@@ -190,7 +190,7 @@ chatGPT.post("/generateResponse", async (req, res) => {
 
     const model = new ChatAnthropic({
       anthropicApiKey: process.env.ANTHROPIC_API_KEY,
-      temperature: 0.9,
+      temperature: 0,
       modelName: "claude-2.1",
       streaming: true,
       callbacks: [
