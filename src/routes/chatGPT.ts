@@ -183,8 +183,8 @@ chatGPT.post("/generateResponse", async (req, res) => {
       const docs = await loader.load();
       const splitter = new RecursiveCharacterTextSplitter({
 
-        chunkSize: 100,
-        chunkOverlap: 10,
+        chunkSize: 1000,
+        chunkOverlap: 200,
 
       });
       splittedDocs = await splitter.splitDocuments(docs);
@@ -244,7 +244,7 @@ chatGPT.post("/generateResponse", async (req, res) => {
 
     // const pineconeIndex = pinecone.Index(process.env.PINECONE_INDEX_NAME!);
     // // console.log('pineconeIndex', pineconeIndex);
-    const embeddings = new OpenAIEmbeddings();
+    const embeddings = new OpenAIEmbeddings({ openAIApiKey: process.env.OPENAI_API_KEY });
     // const pineconeStore = new PineconeStore(embeddings, { pineconeIndex });
 
     // //embed the PDF documents
@@ -258,7 +258,7 @@ chatGPT.post("/generateResponse", async (req, res) => {
     // const vectorStore = await embedAndStoreDocs(pinecone, splittedDocs);
 
     // Finally store our splitted chunks with open ai embeddings
-    const vectorStore = await HNSWLib.fromDocuments(splittedDocs, embeddings);
+    const vectorStore = await FaissStore.fromDocuments(splittedDocs, embeddings);
 
     // Load the docs into the vector store
     // const vectorStore = await FaissStore.fromDocuments(
@@ -266,7 +266,7 @@ chatGPT.post("/generateResponse", async (req, res) => {
     //   new OpenAIEmbeddings({ openAIApiKey: process.env.OPENAI_API_KEY })
     // );
 
-    const vectorStoreRetriever = vectorStore.asRetriever();
+    const vectorStoreRetriever = vectorStore.asRetriever(6, 'similarity');
 
     /**
      * Represents a conversational retrieval QA chain.
@@ -304,7 +304,6 @@ chatGPT.post("/generateResponse", async (req, res) => {
         role: "system",
         content: `You are ChatGPT, a language model trained to act as chatbot. You are analyzing the data from PDFs. This data should be considered a PDF. You are a general answering assistant that can comply with any request.You always answer the with markdown formatting with paragraph structures.  `,
       },
-      chat_history ? { ...chat_history.history } : [],
       {
         role: "user",
         content: prompt,
