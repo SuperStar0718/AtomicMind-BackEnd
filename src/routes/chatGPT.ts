@@ -186,7 +186,61 @@ chatGPT.post("/generateResponse", async (req, res) => {
     const type = req.body.type;
     const name = req.body.name;
 
-    const splittedDocs = await getSpliteDocument(type, id, name);
+
+    let splittedDocs = [];
+    const processDocuments = async (fileName) => {
+      const loader = new PDFLoader(`uploads/${fileName}`);
+      const docs = await loader.load();
+      const splitter = new RecursiveCharacterTextSplitter({
+
+        chunkSize: 1000,
+        chunkOverlap: 200,
+
+      });
+      return splitter.splitDocuments(docs);
+    };
+
+    // Call the ChatGPT API here
+    if (type === "document") {
+      const loader = new PDFLoader(`uploads/${name}`);
+      const docs = await loader.load();
+      const splitter = new RecursiveCharacterTextSplitter({
+
+        chunkSize: 1000,
+        chunkOverlap: 200,
+
+      });
+      splittedDocs = await splitter.splitDocuments(docs);
+    } else if (type === "folder") {
+      const documents = await User.findById(id, {
+        folders: { $elemMatch: { folderName: name } },
+      });
+      const fileNames = documents.folders[0].documents;
+
+      const docPromises = fileNames.map(processDocuments);
+      splittedDocs = await Promise.all(docPromises).then((docs) => docs.flat());
+    } else {
+      const user = await User.findById(id);
+      user.folders.forEach(async (folder) => {
+        const fileNames = folder.documents;
+        const docPromises = fileNames.map(processDocuments);
+        splittedDocs = await Promise.all(docPromises).then((docs) =>
+          docs.flat()
+        );
+      });
+
+      const docPromises = user.documents.map(processDocuments);
+      splittedDocs = await Promise.all(docPromises).then((docs) => docs.flat());
+    }
+    /**
+     * The OpenAI instance used for making API calls.
+     * @type {OpenAI}
+     */
+    const streamingModel = new ChatOpenAI({
+      modelName: "gpt-4-turbo-preview",
+
+      temperature: 0.1,
+
 
     const model = new ChatAnthropic({
       anthropicApiKey: process.env.ANTHROPIC_API_KEY,
@@ -207,23 +261,45 @@ chatGPT.post("/generateResponse", async (req, res) => {
       ],
     });
 
-    // const embeddings = new OpenAIEmbeddings();
+
+    // Instantiate a new Pinecone client, which will automatically read the
+    // env vars: PINECONE_API_KEY and PINECONE_ENVIRONMENT which come from
+    // the Pinecone dashboard at https://app.pinecone.io
+
+    // const pinecone = new Pinecone({
+    //   apiKey: process.env.PINECONE_API_KEY!
+    // });
+
+    // const pineconeIndex = pinecone.Index(process.env.PINECONE_INDEX_NAME!);
+    // // console.log('pineconeIndex', pineconeIndex);
+    const embeddings = new OpenAIEmbeddings({ openAIApiKey: process.env.OPENAI_API_KEY });
+    // const pineconeStore = new PineconeStore(embeddings, { pineconeIndex });
+
+    // //embed the PDF documents
+    // const vectorStore = await PineconeStore.fromDocuments(splittedDocs, embeddings, {
+    //   pineconeIndex: pineconeIndex,
+    //   namespace: 'atomicask',
+    //   textKey: 'text',
+    // });
+
+    const pinecone = await initPineconeClient();
+    // const vectorStore = await embedAndStoreDocs(pinecone, splittedDocs);
 
     // Finally store our splitted chunks with open ai embeddings
-    // const vectorStore = await HNSWLib.fromDocuments(splittedDocs, embeddings);
+    const vectorStore = await FaissStore.fromDocuments(splittedDocs, embeddings);
 
-    const vectorStore = await MemoryVectorStore.fromDocuments(
-      splittedDocs,
-      new OpenAIEmbeddings()
-    );
-    const vectorStoreRetriever = vectorStore.asRetriever(4);
 
     // Load the docs into the vector store
     // const vectorStore = await FaissStore.fromDocuments(
     //   splittedDocs,
     //   new OpenAIEmbeddings({ openAIApiKey: process.env.OPENAI_API_KEY })
     // );
-   /**
+
+
+    const vectorStoreRetriever = vectorStore.asRetriever(6, 'similarity');
+
+    /**
+
      * Represents a conversational retrieval QA chain.
      */
    const chain = ConversationalRetrievalQAChain.fromLLM(
@@ -235,27 +311,14 @@ chatGPT.post("/generateResponse", async (req, res) => {
       questionGeneratorChainOptions: {
         llm: nonStreamModel,
       },
-      returnSourceDocuments: true,
-      memory: new BufferMemory({
-        memoryKey: "chat_history",
-        inputKey: "question", // The key for the input to the chain
-        outputKey: "text", // The key for the final conversational output of the chain
-        returnMessages: true, // If using with a chat model
-      }),
-    }
-  );
 
-    const chat_history = await getChatHistory(type, id, name);
-    // console.log("chat_history:", chat_history);
-    const chatHistory = ConversationalRetrievalQAChain.getChatHistoryString(
-      chat_history.map((m) => {
-        if (m.role == 'user') {
-          return new HumanChatMessage(m.content);
-        }
-  
-        return new AIChatMessage(m.content);
-      })
-    );
+      {
+        role: "user",
+        content: prompt,
+      },
+    ];
+    console.log("messages", messages);
+
     const response = await chain.call({
       question: prompt,
       chat_history: chatHistory,

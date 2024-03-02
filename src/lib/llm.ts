@@ -4,7 +4,7 @@ import { ChatOpenAI } from "@langchain/openai";
 
 export const nonStreamModel = new ChatOpenAI({
   modelName: "gpt-4-turbo-preview",
-  temperature: 0,
+  temperature: 0.5,
   openAIApiKey: process.env.OPENAI_API_KEY,
   streaming: false,
 });
