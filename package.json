@@ -20,8 +20,6 @@
   },
   "homepage": "https://github.com/SuperStar0718/AtomicMind-BackEnd#readme",
   "dependencies": {
-    "@langchain/anthropic": "^0.1.0",
-    "@langchain/core": "^0.1.39",
     "@langchain/openai": "^0.0.14",
     "@langchain/pinecone": "^0.0.3",
     "@pinecone-database/pinecone": "^2.0.1",
