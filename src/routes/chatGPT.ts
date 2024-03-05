@@ -114,6 +114,26 @@ chatGPT.post("/uploadFiles", upload.any(), async (req, res) => {
   }
 });
 
+chatGPT.post("/moveToFolder", async (req, res) => {
+  try {
+    const { id, folderName, documentName } = req.body;
+    await User
+      .updateOne(
+        { _id: id },
+        { $pull: { documents: documentName } }
+      );
+    await User
+      .updateOne(
+        { _id: id, "folders.folderName": folderName },
+        { $addToSet: { "folders.$.documents": documentName } }
+      );
+    res.send("Document moved successfully");
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Internal Server Error");
+  }
+})
+
 chatGPT.post("/deleteFolder", async (req, res) => {
   try {
     console.log(req.body);
