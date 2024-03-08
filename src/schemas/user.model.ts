@@ -5,6 +5,7 @@ import bcrypt from 'bcrypt';
 interface IChatHitory{
   role:string;
   content:string;
+  sourceDocuments:any[];
 }
 interface IHistory{
   type: string;
@@ -77,6 +78,11 @@ const UserSchema: Schema = new Schema(
               type: String,
               required: true,
             },
+            sourceDocuments:[
+              {
+                type: Object,
+              }
+            ]
           },
         ],
       },
