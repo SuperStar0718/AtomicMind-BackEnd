@@ -30,6 +30,7 @@
     "dotenv": "^16.4.2",
     "express": "^4.18.2",
     "faiss-node": "^0.5.1",
+    "find-root": "^1.1.0",
     "fs-extra": "^11.2.0",
     "hnswlib-node": "^1.4.2",
     "jet-logger": "^1.3.1",

@@ -39,6 +39,7 @@ import { embedAndStoreDocs } from "../lib/vector-store";
 import { nonStreamModel } from "../lib/llm";
 import { QA_TEMPLATE } from "../lib/prompt-templates";
 import { STANDALONE_QUESTION_TEMPLATE } from "../lib/prompt-templates";
+import { initializePineconeStore } from "../services/PineconeService";
 
 const chatGPT = Router();
 
@@ -117,22 +118,17 @@ chatGPT.post("/uploadFiles", upload.any(), async (req, res) => {
 chatGPT.post("/moveToFolder", async (req, res) => {
   try {
     const { id, folderName, documentName } = req.body;
-    await User
-      .updateOne(
-        { _id: id },
-        { $pull: { documents: documentName } }
-      );
-    await User
-      .updateOne(
-        { _id: id, "folders.folderName": folderName },
-        { $addToSet: { "folders.$.documents": documentName } }
-      );
+    await User.updateOne({ _id: id }, { $pull: { documents: documentName } });
+    await User.updateOne(
+      { _id: id, "folders.folderName": folderName },
+      { $addToSet: { "folders.$.documents": documentName } }
+    );
     res.send("Document moved successfully");
   } catch (err) {
     console.error(err);
     res.status(500).send("Internal Server Error");
   }
-})
+});
 
 chatGPT.post("/deleteFolder", async (req, res) => {
   try {
@@ -189,10 +185,8 @@ chatGPT.post("/generateResponse", async (req, res) => {
       const loader = new PDFLoader(`uploads/${fileName}`);
       const docs = await loader.load();
       const splitter = new RecursiveCharacterTextSplitter({
-
         chunkSize: 1000,
         chunkOverlap: 200,
-
       });
       return splitter.splitDocuments(docs);
     };
@@ -202,10 +196,8 @@ chatGPT.post("/generateResponse", async (req, res) => {
       const loader = new PDFLoader(`uploads/${name}`);
       const docs = await loader.load();
       const splitter = new RecursiveCharacterTextSplitter({
-
         chunkSize: 1000,
         chunkOverlap: 200,
-
       });
       splittedDocs = await splitter.splitDocuments(docs);
     } else if (type === "folder") {
@@ -213,7 +205,6 @@ chatGPT.post("/generateResponse", async (req, res) => {
         folders: { $elemMatch: { folderName: name } },
       });
       const fileNames = documents.folders[0].documents;
-
       const docPromises = fileNames.map(processDocuments);
       splittedDocs = await Promise.all(docPromises).then((docs) => docs.flat());
     } else {
@@ -229,6 +220,7 @@ chatGPT.post("/generateResponse", async (req, res) => {
       const docPromises = user.documents.map(processDocuments);
       splittedDocs = await Promise.all(docPromises).then((docs) => docs.flat());
     }
+
     /**
      * The OpenAI instance used for making API calls.
      * @type {OpenAI}
@@ -248,7 +240,7 @@ chatGPT.post("/generateResponse", async (req, res) => {
             res.flushHeaders();
           },
           async handleLLMEnd() {
-            res.end();
+            // res.end();
           },
         },
       ],
@@ -264,7 +256,9 @@ chatGPT.post("/generateResponse", async (req, res) => {
 
     // const pineconeIndex = pinecone.Index(process.env.PINECONE_INDEX_NAME!);
     // // console.log('pineconeIndex', pineconeIndex);
-    const embeddings = new OpenAIEmbeddings({ openAIApiKey: process.env.OPENAI_API_KEY });
+    // const embeddings = new OpenAIEmbeddings({
+    //   openAIApiKey: process.env.OPENAI_API_KEY,
+    // });
     // const pineconeStore = new PineconeStore(embeddings, { pineconeIndex });
 
     // //embed the PDF documents
@@ -274,19 +268,40 @@ chatGPT.post("/generateResponse", async (req, res) => {
     //   textKey: 'text',
     // });
 
-    const pinecone = await initPineconeClient();
+    // const pinecone = await initPineconeClient();
     // const vectorStore = await embedAndStoreDocs(pinecone, splittedDocs);
 
     // Finally store our splitted chunks with open ai embeddings
-    const vectorStore = await FaissStore.fromDocuments(splittedDocs, embeddings);
+    // const vectorStore = await FaissStore.fromDocuments(splittedDocs, embeddings);
 
     // Load the docs into the vector store
-    // const vectorStore = await FaissStore.fromDocuments(
-    //   splittedDocs,
-    //   new OpenAIEmbeddings({ openAIApiKey: process.env.OPENAI_API_KEY })
-    // );
+    const vectorStore = await FaissStore.fromDocuments(
+      splittedDocs,
+      new OpenAIEmbeddings({ openAIApiKey: process.env.OPENAI_API_KEY })
+    );
 
-    const vectorStoreRetriever = vectorStore.asRetriever(6, 'similarity');
+
+    // const vectorStore = await initializePineconeStore(splittedDocs);
+
+
+    // const pinecone = new Pinecone({
+    //   apiKey: process.env.PINECONE_API_KEY!
+    // });
+    
+    // const pineconeIndex = pinecone.Index(process.env.PINECONE_INDEX_NAME!);
+    // // console.log('pineconeIndex', pineconeIndex);
+    // const embeddings = new OpenAIEmbeddings();
+    // const pineconeStore = new PineconeStore(embeddings, { pineconeIndex });
+    
+    // //embed the PDF documents
+    // const vectorStore = await PineconeStore.fromDocuments(splittedDocs, embeddings, {
+    //   pineconeIndex: pineconeIndex,
+    //   namespace: 'atomicask',
+    //   textKey: 'text',
+    // });
+
+
+    const vectorStoreRetriever = vectorStore.asRetriever();
 
     /**
      * Represents a conversational retrieval QA chain.
@@ -334,6 +349,13 @@ chatGPT.post("/generateResponse", async (req, res) => {
       question: prompt,
       chat_history: chat_history,
     });
+    const sourceDocuments = []
+    response.sourceDocuments.forEach((doc) => {
+      sourceDocuments.push(doc.metadata);
+    });
+    const slicedDocuments = sourceDocuments.slice(0,3);
+    res.write(`data: ${JSON.stringify({sourceDocuments: slicedDocuments })}\n\n`);
+    res.end();
     // console.log("res:", response);
     // await fs.promises.writeFile(
     //   path.join(__dirname, "../chat_history.json"),
@@ -348,7 +370,7 @@ chatGPT.post("/generateResponse", async (req, res) => {
           $push: {
             "history.$[elem].history": [
               { role: "user", content: prompt },
-              { role: "assistant", content: response.text },
+              { role: "assistant", content: response.text, sourceDocuments: slicedDocuments },
             ],
           },
         },
@@ -365,7 +387,7 @@ chatGPT.post("/generateResponse", async (req, res) => {
               name: name,
               history: [
                 { role: "user", content: prompt },
-                { role: "assistant", content: response.text },
+                { role: "assistant", content: response.text, sourceDocuments: slicedDocuments},
               ],
             },
           },

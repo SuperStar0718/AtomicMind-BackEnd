@@ -12,5 +12,4 @@ export async function initPineconeClient(){
     catch(err){
         console.error(err);
     }
-  
 }
