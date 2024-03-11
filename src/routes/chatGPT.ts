@@ -369,10 +369,10 @@ chatGPT.post("/generateResponse", async (req, res) => {
       sourceDocuments.push(doc);
     });
     const slicedDocuments = sourceDocuments.slice(0, 3);
-    res.write(
-      `data: ${JSON.stringify({ sourceDocuments: slicedDocuments })}\n\n`
-    );
-    res.end();
+    // res.write(
+    //   `data: ${JSON.stringify({ sourceDocuments: slicedDocuments })}\n\n`
+    // );
+    // res.end();
     // console.log("res:", response);
     // await fs.promises.writeFile(
     //   path.join(__dirname, "../chat_history.json"),
