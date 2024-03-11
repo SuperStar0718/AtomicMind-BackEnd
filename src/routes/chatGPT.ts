@@ -275,32 +275,47 @@ chatGPT.post("/generateResponse", async (req, res) => {
     // const vectorStore = await FaissStore.fromDocuments(splittedDocs, embeddings);
 
     // Load the docs into the vector store
-    const vectorStore = await FaissStore.fromDocuments(
-      splittedDocs,
-      new OpenAIEmbeddings({ openAIApiKey: process.env.OPENAI_API_KEY })
-    );
-
+    // const vectorStore = await FaissStore.fromDocuments(
+    //   splittedDocs,
+    //   new OpenAIEmbeddings({ openAIApiKey: process.env.OPENAI_API_KEY })
+    // );
 
     // const vectorStore = await initializePineconeStore(splittedDocs);
 
+    const pinecone = new Pinecone({
+      apiKey: process.env.PINECONE_API_KEY!,
+    });
 
-    // const pinecone = new Pinecone({
-    //   apiKey: process.env.PINECONE_API_KEY!
-    // });
-    
-    // const pineconeIndex = pinecone.Index(process.env.PINECONE_INDEX_NAME!);
-    // // console.log('pineconeIndex', pineconeIndex);
-    // const embeddings = new OpenAIEmbeddings();
-    // const pineconeStore = new PineconeStore(embeddings, { pineconeIndex });
-    
-    // //embed the PDF documents
-    // const vectorStore = await PineconeStore.fromDocuments(splittedDocs, embeddings, {
-    //   pineconeIndex: pineconeIndex,
-    //   namespace: 'atomicask',
-    //   textKey: 'text',
-    // });
+    const pineconeIndex = pinecone.Index(process.env.PINECONE_INDEX_NAME!);
+    await pineconeIndex.namespace("atomicask").deleteAll();
 
+    // console.log('pineconeIndex', pineconeIndex);
+    const embeddings = new OpenAIEmbeddings();
+    const pineconeStore = new PineconeStore(embeddings, { pineconeIndex });
 
+    //embed the PDF documents
+    await PineconeStore.fromDocuments(splittedDocs, embeddings, {
+      pineconeIndex: pineconeIndex,
+      namespace: "atomicask",
+      textKey: "text",
+    });
+
+    while (true) {
+      const status = await pineconeIndex.describeIndexStats();
+      console.log("Indexed documents:", status.totalRecordCount);
+
+      if (status.totalRecordCount > 0)
+      {
+        console.log("Indexed documents:", status.totalRecordCount);
+        break;
+      }
+    }
+    const vectorStore = await PineconeStore.fromExistingIndex(
+      new OpenAIEmbeddings(),
+      { pineconeIndex: pineconeIndex,
+        namespace: "atomicask",
+        textKey: "text", }
+    );
     const vectorStoreRetriever = vectorStore.asRetriever();
 
     /**
@@ -332,7 +347,7 @@ chatGPT.post("/generateResponse", async (req, res) => {
         (item) => item.name === name && item.type === type
       );
     }
-    console.log("chat_history", chat_history);
+    // console.log("chat_history", chat_history);
 
     const messages = [
       {
@@ -349,18 +364,20 @@ chatGPT.post("/generateResponse", async (req, res) => {
       question: prompt,
       chat_history: chat_history,
     });
-    const sourceDocuments = []
+    const sourceDocuments = [];
     response.sourceDocuments.forEach((doc) => {
-      sourceDocuments.push(doc.metadata);
+      sourceDocuments.push(doc);
     });
-    const slicedDocuments = sourceDocuments.slice(0,3);
-    res.write(`data: ${JSON.stringify({sourceDocuments: slicedDocuments })}\n\n`);
+    const slicedDocuments = sourceDocuments.slice(0, 3);
+    res.write(
+      `data: ${JSON.stringify({ sourceDocuments: slicedDocuments })}\n\n`
+    );
     res.end();
     // console.log("res:", response);
-    // await fs.promises.writeFile(
-    //   path.join(__dirname, "../chat_history.json"),
-    //   JSON.stringify(response)
-    // );
+    await fs.promises.writeFile(
+      path.join(__dirname, "../chat_history.json"),
+      JSON.stringify(response)
+    );
 
     if (chat_history) {
       console.log("exists:", type, name);
@@ -370,7 +387,11 @@ chatGPT.post("/generateResponse", async (req, res) => {
           $push: {
             "history.$[elem].history": [
               { role: "user", content: prompt },
-              { role: "assistant", content: response.text, sourceDocuments: slicedDocuments },
+              {
+                role: "assistant",
+                content: response.text,
+                sourceDocuments: slicedDocuments,
+              },
             ],
           },
         },
@@ -387,7 +408,11 @@ chatGPT.post("/generateResponse", async (req, res) => {
               name: name,
               history: [
                 { role: "user", content: prompt },
-                { role: "assistant", content: response.text, sourceDocuments: slicedDocuments},
+                {
+                  role: "assistant",
+                  content: response.text,
+                  sourceDocuments: slicedDocuments,
+                },
               ],
             },
           },
@@ -443,5 +468,6 @@ chatGPT.post("/clearHistory", async (req, res) => {
     res.status(500).send("Internal Server Error");
   }
 });
+
 
 export default chatGPT;
