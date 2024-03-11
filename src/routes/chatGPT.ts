@@ -300,16 +300,16 @@ chatGPT.post("/generateResponse", async (req, res) => {
       textKey: "text",
     });
 
-    while (true) {
-      const status = await pineconeIndex.describeIndexStats();
-      console.log("Indexed documents:", status.totalRecordCount);
+    // while (true) {
+    //   const status = await pineconeIndex.describeIndexStats();
+    //   console.log("Indexed documents:", status.totalRecordCount);
 
-      if (status.totalRecordCount > 0)
-      {
-        console.log("Indexed documents:", status.totalRecordCount);
-        break;
-      }
-    }
+    //   if (status.totalRecordCount > 0)
+    //   {
+    //     console.log("Indexed documents:", status.totalRecordCount);
+    //     break;
+    //   }
+    // }
     const vectorStore = await PineconeStore.fromExistingIndex(
       new OpenAIEmbeddings(),
       { pineconeIndex: pineconeIndex,
