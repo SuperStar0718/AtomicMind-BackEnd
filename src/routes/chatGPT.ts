@@ -374,10 +374,10 @@ chatGPT.post("/generateResponse", async (req, res) => {
     );
     res.end();
     // console.log("res:", response);
-    await fs.promises.writeFile(
-      path.join(__dirname, "../chat_history.json"),
-      JSON.stringify(response)
-    );
+    // await fs.promises.writeFile(
+    //   path.join(__dirname, "../chat_history.json"),
+    //   JSON.stringify(response)
+    // );
 
     if (chat_history) {
       console.log("exists:", type, name);
