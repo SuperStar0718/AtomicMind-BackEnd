@@ -245,7 +245,6 @@ chatGPT.post("/generateResponse", async (req, res) => {
         },
       ],
     });
-
     // Instantiate a new Pinecone client, which will automatically read the
     // env vars: PINECONE_API_KEY and PINECONE_ENVIRONMENT which come from
     // the Pinecone dashboard at https://app.pinecone.io
@@ -291,7 +290,6 @@ chatGPT.post("/generateResponse", async (req, res) => {
 
     // console.log('pineconeIndex', pineconeIndex);
     const embeddings = new OpenAIEmbeddings();
-    const pineconeStore = new PineconeStore(embeddings, { pineconeIndex });
 
     //embed the PDF documents
     await PineconeStore.fromDocuments(splittedDocs, embeddings, {
