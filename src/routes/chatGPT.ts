@@ -291,6 +291,7 @@ chatGPT.post("/generateResponse", async (req, res) => {
     // console.log('pineconeIndex', pineconeIndex);
     const embeddings = new OpenAIEmbeddings();
     // const pineconeStore = new PineconeStore(embeddings, { pineconeIndex });
+    return res.end();
 
     //embed the PDF documents
     await PineconeStore.fromDocuments(splittedDocs, embeddings, {
@@ -298,7 +299,6 @@ chatGPT.post("/generateResponse", async (req, res) => {
       namespace: "atomicask",
       textKey: "text",
     });
-    return res.end();
 
     while (true) {
       const status = await pineconeIndex.describeIndexStats();
