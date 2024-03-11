@@ -240,7 +240,7 @@ chatGPT.post("/generateResponse", async (req, res) => {
             res.flushHeaders();
           },
           async handleLLMEnd() {
-            res.end();
+            // res.end();
           },
         },
       ],
@@ -286,11 +286,10 @@ chatGPT.post("/generateResponse", async (req, res) => {
     });
 
     const pineconeIndex = pinecone.Index(process.env.PINECONE_INDEX_NAME!);
-    // await pineconeIndex.namespace("atomicask").deleteAll();
+    await pineconeIndex.namespace("atomicask").deleteAll();
 
     // console.log('pineconeIndex', pineconeIndex);
     const embeddings = new OpenAIEmbeddings();
-    // const pineconeStore = new PineconeStore(embeddings, { pineconeIndex });
 
     //embed the PDF documents
     await PineconeStore.fromDocuments(splittedDocs, embeddings, {
