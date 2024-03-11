@@ -281,7 +281,6 @@ chatGPT.post("/generateResponse", async (req, res) => {
 
     // const vectorStore = await initializePineconeStore(splittedDocs);
 
-    return res.end('process.env.PINECONE_API_KEY');
     const pinecone = new Pinecone({
       apiKey: process.env.PINECONE_API_KEY!,
     });
