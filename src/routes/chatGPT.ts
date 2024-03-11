@@ -240,7 +240,7 @@ chatGPT.post("/generateResponse", async (req, res) => {
             res.flushHeaders();
           },
           async handleLLMEnd() {
-            // res.end();
+            res.end();
           },
         },
       ],
@@ -287,11 +287,11 @@ chatGPT.post("/generateResponse", async (req, res) => {
     });
 
     const pineconeIndex = pinecone.Index(process.env.PINECONE_INDEX_NAME!);
-    await pineconeIndex.namespace("atomicask").deleteAll();
+    // await pineconeIndex.namespace("atomicask").deleteAll();
 
     // console.log('pineconeIndex', pineconeIndex);
     const embeddings = new OpenAIEmbeddings();
-    const pineconeStore = new PineconeStore(embeddings, { pineconeIndex });
+    // const pineconeStore = new PineconeStore(embeddings, { pineconeIndex });
 
     //embed the PDF documents
     await PineconeStore.fromDocuments(splittedDocs, embeddings, {
@@ -300,16 +300,16 @@ chatGPT.post("/generateResponse", async (req, res) => {
       textKey: "text",
     });
 
-    // while (true) {
-    //   const status = await pineconeIndex.describeIndexStats();
-    //   console.log("Indexed documents:", status.totalRecordCount);
+    while (true) {
+      const status = await pineconeIndex.describeIndexStats();
+      console.log("Indexed documents:", status.totalRecordCount);
 
-    //   if (status.totalRecordCount > 0)
-    //   {
-    //     console.log("Indexed documents:", status.totalRecordCount);
-    //     break;
-    //   }
-    // }
+      if (status.totalRecordCount > 0)
+      {
+        console.log("Indexed documents:", status.totalRecordCount);
+        break;
+      }
+    }
     const vectorStore = await PineconeStore.fromExistingIndex(
       new OpenAIEmbeddings(),
       { pineconeIndex: pineconeIndex,
@@ -369,10 +369,10 @@ chatGPT.post("/generateResponse", async (req, res) => {
       sourceDocuments.push(doc);
     });
     const slicedDocuments = sourceDocuments.slice(0, 3);
-    // res.write(
-    //   `data: ${JSON.stringify({ sourceDocuments: slicedDocuments })}\n\n`
-    // );
-    // res.end();
+    res.write(
+      `data: ${JSON.stringify({ sourceDocuments: slicedDocuments })}\n\n`
+    );
+    res.end();
     // console.log("res:", response);
     // await fs.promises.writeFile(
     //   path.join(__dirname, "../chat_history.json"),
