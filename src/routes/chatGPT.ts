@@ -280,6 +280,7 @@ chatGPT.post("/generateResponse", async (req, res) => {
     // );
 
     // const vectorStore = await initializePineconeStore(splittedDocs);
+    return res.end();
 
     const pinecone = new Pinecone({
       apiKey: process.env.PINECONE_API_KEY!,
@@ -291,7 +292,6 @@ chatGPT.post("/generateResponse", async (req, res) => {
     // console.log('pineconeIndex', pineconeIndex);
     const embeddings = new OpenAIEmbeddings();
     // const pineconeStore = new PineconeStore(embeddings, { pineconeIndex });
-    return res.end();
 
     //embed the PDF documents
     await PineconeStore.fromDocuments(splittedDocs, embeddings, {
