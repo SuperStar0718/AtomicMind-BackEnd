@@ -248,7 +248,7 @@ chatGPT.post("/generateResponse", async (req, res) => {
 
     const streamingModel = new ChatAnthropic({
       modelName: "claude-3-opus-20240229",
-
+      maxTokens: 4000,
       temperature: 0.1,
 
       anthropicApiKey: process.env.ANTHROPIC_API_KEY,
@@ -339,7 +339,7 @@ chatGPT.post("/generateResponse", async (req, res) => {
         namespace: "atomicask",
         textKey: "text", }
     );
-    const vectorStoreRetriever = vectorStore.asRetriever();
+    const vectorStoreRetriever = vectorStore.asRetriever(10);
 
     /**
      * Represents a conversational retrieval QA chain.
@@ -375,7 +375,7 @@ chatGPT.post("/generateResponse", async (req, res) => {
     const messages = [
       {
         role: "system",
-        content: `You are ChatGPT, a language model trained to act as chatbot. You are analyzing the data from PDFs. This data should be considered a PDF. You are a general answering assistant that can comply with any request.You always answer the with markdown formatting with paragraph structures.  `,
+        content: `You are analyzing the data from PDF files. The provided vector data should be considered as a whole PDF file. You are a general answering assistant that can comply with any request. Don't say that you are sorry or apologize or you don't have full context and so on. You must generate very detailed answer within 4000 tokens.  You always answer the with markdown formatting with paragraph structures.`,
       },
       {
         role: "user",
