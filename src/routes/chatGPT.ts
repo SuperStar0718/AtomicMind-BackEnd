@@ -153,11 +153,14 @@ chatGPT.post("/deleteDocument", async (req, res) => {
     const documentName = req.body.documentName;
     const folderName = req.body.folderName;
     const id = req.body.id;
-
-    await User.updateOne(
-      { _id: id, "folders.folderName": folderName },
-      { $pull: { "folders.$.documents": documentName } }
-    );
+    if (!folderName) {
+      await User.updateOne({ _id: id }, { $pull: { documents: documentName } });
+    } else {
+      await User.updateOne(
+        { _id: id, "folders.folderName": folderName },
+        { $pull: { "folders.$.documents": documentName } }
+      );
+    }
     res.send("Folder deleted successfully");
   } catch (err) {
     console.error(err);
@@ -307,7 +310,7 @@ chatGPT.post("/generateResponse", async (req, res) => {
     });
 
     const pineconeIndex = pinecone.Index(process.env.PINECONE_INDEX_NAME!);
-    try{
+    try {
       await pineconeIndex.namespace("atomicask").deleteAll();
     } catch (e) {
       console.log("Error deleting all", e);
@@ -327,17 +330,14 @@ chatGPT.post("/generateResponse", async (req, res) => {
       const status = await pineconeIndex.describeIndexStats();
       console.log("Indexed documents:", status.totalRecordCount);
 
-      if (status.totalRecordCount > 0)
-      {
+      if (status.totalRecordCount > 0) {
         console.log("Indexed documents:", status.totalRecordCount);
         break;
       }
     }
     const vectorStore = await PineconeStore.fromExistingIndex(
       new OpenAIEmbeddings(),
-      { pineconeIndex: pineconeIndex,
-        namespace: "atomicask",
-        textKey: "text", }
+      { pineconeIndex: pineconeIndex, namespace: "atomicask", textKey: "text" }
     );
     const vectorStoreRetriever = vectorStore.asRetriever(20);
 
@@ -491,6 +491,5 @@ chatGPT.post("/clearHistory", async (req, res) => {
     res.status(500).send("Internal Server Error");
   }
 });
-
 
 export default chatGPT;
