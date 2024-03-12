@@ -307,7 +307,11 @@ chatGPT.post("/generateResponse", async (req, res) => {
     });
 
     const pineconeIndex = pinecone.Index(process.env.PINECONE_INDEX_NAME!);
-    await pineconeIndex.namespace("atomicask").deleteAll();
+    try{
+      await pineconeIndex.namespace("atomicask").deleteAll();
+    } catch (e) {
+      console.log("Error deleting all", e);
+    }
 
     // console.log('pineconeIndex', pineconeIndex);
     const embeddings = new OpenAIEmbeddings();
