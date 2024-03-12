@@ -18,7 +18,7 @@ import { OpenAI } from "@langchain/openai";
 
 import { Pinecone } from "@pinecone-database/pinecone";
 import { PineconeStore } from "@langchain/pinecone";
-
+import { ChatAnthropic } from "@langchain/anthropic";
 import { v4 as uuid } from "uuid";
 
 import { FaissStore } from "@langchain/community/vectorstores/faiss";
@@ -225,12 +225,33 @@ chatGPT.post("/generateResponse", async (req, res) => {
      * The OpenAI instance used for making API calls.
      * @type {OpenAI}
      */
-    const streamingModel = new ChatOpenAI({
-      modelName: "gpt-4-turbo-preview",
+    // const streamingModel = new ChatOpenAI({
+    //   modelName: "gpt-4-turbo-preview",
+
+    //   temperature: 0.1,
+
+    //   openAIApiKey: process.env.OPENAI_API_KEY,
+    //   streaming: true,
+    //   callbacks: [
+    //     {
+    //       async handleLLMNewToken(token) {
+    //         // console.log("Token:", token);
+    //         res.write(`data: ${JSON.stringify(token)}\n\n`);
+    //         res.flushHeaders();
+    //       },
+    //       async handleLLMEnd() {
+    //         // res.end();
+    //       },
+    //     },
+    //   ],
+    // });
+
+    const streamingModel = new ChatAnthropic({
+      modelName: "claude-3-opus-20240229",
 
       temperature: 0.1,
 
-      openAIApiKey: process.env.OPENAI_API_KEY,
+      anthropicApiKey: process.env.ANTHROPIC_API_KEY,
       streaming: true,
       callbacks: [
         {
@@ -286,7 +307,11 @@ chatGPT.post("/generateResponse", async (req, res) => {
     });
 
     const pineconeIndex = pinecone.Index(process.env.PINECONE_INDEX_NAME!);
-    await pineconeIndex.namespace("atomicask").deleteAll();
+    try{
+      await pineconeIndex.namespace("atomicask").deleteAll();
+    } catch (e) {
+      console.log("Error deleting all", e);
+    }
 
     // console.log('pineconeIndex', pineconeIndex);
     const embeddings = new OpenAIEmbeddings();
