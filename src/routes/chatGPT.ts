@@ -179,7 +179,6 @@ chatGPT.post("/generateResponse", async (req, res) => {
     const id = req.body.id;
     const type = req.body.type;
     const name = req.body.name;
-
     let splittedDocs = [];
     const processDocuments = async (fileName) => {
       const loader = new PDFLoader(`uploads/${fileName}`);
@@ -426,8 +425,21 @@ chatGPT.post("/generateResponse", async (req, res) => {
     //send response to the client stream.readable
   } catch (err) {
     console.error(err);
-    res.status(500).send("Internal Server Error");
+    if (!res.headersSent) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Internal Server Error' }));
+    } else {
+      // If headers were already sent, we might not be able to send a proper error response
+      // It's important to ensure the connection is properly closed in case of an error.
+      res.end(); // End the response to close the connection
+    }
   }
+
+   // Additional error handling for the response stream
+   res.on('error', (error) => {
+    console.error('Response stream error:', error);
+    // Handle the error, e.g., by logging it. Note that response might be partially sent at this point.
+  });
 });
 
 chatGPT.post("/loadChatHistory", async (req, res) => {
