@@ -286,7 +286,7 @@ chatGPT.post("/generateResponse", async (req, res) => {
     });
 
     const pineconeIndex = pinecone.Index(process.env.PINECONE_INDEX_NAME!);
-    try{
+    try {
       await pineconeIndex.namespace("atomicask").deleteAll();
     } catch (e) {
       console.log("Error deleting all", e);
@@ -306,19 +306,17 @@ chatGPT.post("/generateResponse", async (req, res) => {
       const status = await pineconeIndex.describeIndexStats();
       console.log("Indexed documents:", status.totalRecordCount);
 
-      if (status.totalRecordCount > 0)
-      {
+      if (status.totalRecordCount > 0) {
         console.log("Indexed documents:", status.totalRecordCount);
         break;
       }
     }
     const vectorStore = await PineconeStore.fromExistingIndex(
       new OpenAIEmbeddings(),
-      { pineconeIndex: pineconeIndex,
-        namespace: "atomicask",
-        textKey: "text", }
+      { pineconeIndex: pineconeIndex, namespace: "atomicask", textKey: "text" }
     );
-    const vectorStoreRetriever = vectorStore.asRetriever();
+    const vectorStoreRetriever = vectorStore.asRetriever(20);
+
 
     /**
      * Represents a conversational retrieval QA chain.
@@ -354,8 +352,9 @@ chatGPT.post("/generateResponse", async (req, res) => {
     const messages = [
       {
         role: "system",
-        content: `You are ChatGPT, a language model trained to act as chatbot. You are analyzing the data from PDFs. This data should be considered a PDF. You are a general answering assistant that can comply with any request.You always answer the with markdown formatting with paragraph structures.  `,
+        content: `You are analyzing the data from PDF files. The provided vector data should be considered as a whole PDF file. You are a general answering assistant that can comply with any request. Don't say that you are sorry or apologize or you don't have full context and so on. You must generate very detailed answer as long  as you can within 50 sentences.  You always answer the with markdown formatting with paragraph structures.`,
       },
+      ...(chat_history?.history?.length > 0 ? chat_history?.history : []),
       {
         role: "user",
         content: prompt,
