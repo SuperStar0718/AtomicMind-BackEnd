@@ -18,7 +18,7 @@ import { OpenAI } from "@langchain/openai";
 
 import { Pinecone } from "@pinecone-database/pinecone";
 import { PineconeStore } from "@langchain/pinecone";
-import { ChatAnthropic } from "@langchain/anthropic";
+
 import { v4 as uuid } from "uuid";
 
 import { FaissStore } from "@langchain/community/vectorstores/faiss";
@@ -153,14 +153,11 @@ chatGPT.post("/deleteDocument", async (req, res) => {
     const documentName = req.body.documentName;
     const folderName = req.body.folderName;
     const id = req.body.id;
-    if (!folderName) {
-      await User.updateOne({ _id: id }, { $pull: { documents: documentName } });
-    } else {
-      await User.updateOne(
-        { _id: id, "folders.folderName": folderName },
-        { $pull: { "folders.$.documents": documentName } }
-      );
-    }
+
+    await User.updateOne(
+      { _id: id, "folders.folderName": folderName },
+      { $pull: { "folders.$.documents": documentName } }
+    );
     res.send("Folder deleted successfully");
   } catch (err) {
     console.error(err);
@@ -227,33 +224,12 @@ chatGPT.post("/generateResponse", async (req, res) => {
      * The OpenAI instance used for making API calls.
      * @type {OpenAI}
      */
-    // const streamingModel = new ChatOpenAI({
-    //   modelName: "gpt-4-turbo-preview",
+    const streamingModel = new ChatOpenAI({
+      modelName: "gpt-4-turbo-preview",
 
-    //   temperature: 0.1,
-
-    //   openAIApiKey: process.env.OPENAI_API_KEY,
-    //   streaming: true,
-    //   callbacks: [
-    //     {
-    //       async handleLLMNewToken(token) {
-    //         // console.log("Token:", token);
-    //         res.write(`data: ${JSON.stringify(token)}\n\n`);
-    //         res.flushHeaders();
-    //       },
-    //       async handleLLMEnd() {
-    //         // res.end();
-    //       },
-    //     },
-    //   ],
-    // });
-
-    const streamingModel = new ChatAnthropic({
-      modelName: "claude-3-opus-20240229",
-      maxTokens: 4000,
       temperature: 0.1,
 
-      anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+      openAIApiKey: process.env.OPENAI_API_KEY,
       streaming: true,
       callbacks: [
         {
@@ -505,5 +481,6 @@ chatGPT.post("/clearHistory", async (req, res) => {
     res.status(500).send("Internal Server Error");
   }
 });
+
 
 export default chatGPT;
