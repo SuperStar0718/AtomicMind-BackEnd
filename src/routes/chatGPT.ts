@@ -18,7 +18,7 @@ import { OpenAI } from "@langchain/openai";
 
 import { Pinecone } from "@pinecone-database/pinecone";
 import { PineconeStore } from "@langchain/pinecone";
-import { ChatAnthropic } from "@langchain/anthropic";
+
 import { v4 as uuid } from "uuid";
 
 import { FaissStore } from "@langchain/community/vectorstores/faiss";
@@ -153,14 +153,11 @@ chatGPT.post("/deleteDocument", async (req, res) => {
     const documentName = req.body.documentName;
     const folderName = req.body.folderName;
     const id = req.body.id;
-    if (!folderName) {
-      await User.updateOne({ _id: id }, { $pull: { documents: documentName } });
-    } else {
-      await User.updateOne(
-        { _id: id, "folders.folderName": folderName },
-        { $pull: { "folders.$.documents": documentName } }
-      );
-    }
+
+    await User.updateOne(
+      { _id: id, "folders.folderName": folderName },
+      { $pull: { "folders.$.documents": documentName } }
+    );
     res.send("Folder deleted successfully");
   } catch (err) {
     console.error(err);
@@ -182,7 +179,6 @@ chatGPT.post("/generateResponse", async (req, res) => {
     const id = req.body.id;
     const type = req.body.type;
     const name = req.body.name;
-
     let splittedDocs = [];
     const processDocuments = async (fileName) => {
       const loader = new PDFLoader(`uploads/${fileName}`);
@@ -228,33 +224,12 @@ chatGPT.post("/generateResponse", async (req, res) => {
      * The OpenAI instance used for making API calls.
      * @type {OpenAI}
      */
-    // const streamingModel = new ChatOpenAI({
-    //   modelName: "gpt-4-turbo-preview",
+    const streamingModel = new ChatOpenAI({
+      modelName: "gpt-4-turbo-preview",
 
-    //   temperature: 0.1,
-
-    //   openAIApiKey: process.env.OPENAI_API_KEY,
-    //   streaming: true,
-    //   callbacks: [
-    //     {
-    //       async handleLLMNewToken(token) {
-    //         // console.log("Token:", token);
-    //         res.write(`data: ${JSON.stringify(token)}\n\n`);
-    //         res.flushHeaders();
-    //       },
-    //       async handleLLMEnd() {
-    //         // res.end();
-    //       },
-    //     },
-    //   ],
-    // });
-
-    const streamingModel = new ChatAnthropic({
-      modelName: "claude-3-opus-20240229",
-      maxTokens: 4000,
       temperature: 0.1,
 
-      anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+      openAIApiKey: process.env.OPENAI_API_KEY,
       streaming: true,
       callbacks: [
         {
@@ -450,8 +425,21 @@ chatGPT.post("/generateResponse", async (req, res) => {
     //send response to the client stream.readable
   } catch (err) {
     console.error(err);
-    res.status(500).send("Internal Server Error");
+    if (!res.headersSent) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Internal Server Error' }));
+    } else {
+      // If headers were already sent, we might not be able to send a proper error response
+      // It's important to ensure the connection is properly closed in case of an error.
+      res.end(); // End the response to close the connection
+    }
   }
+
+   // Additional error handling for the response stream
+   res.on('error', (error) => {
+    console.error('Response stream error:', error);
+    // Handle the error, e.g., by logging it. Note that response might be partially sent at this point.
+  });
 });
 
 chatGPT.post("/loadChatHistory", async (req, res) => {
@@ -493,5 +481,6 @@ chatGPT.post("/clearHistory", async (req, res) => {
     res.status(500).send("Internal Server Error");
   }
 });
+
 
 export default chatGPT;
