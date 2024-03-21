@@ -153,11 +153,14 @@ chatGPT.post("/deleteDocument", async (req, res) => {
     const documentName = req.body.documentName;
     const folderName = req.body.folderName;
     const id = req.body.id;
-
-    await User.updateOne(
-      { _id: id, "folders.folderName": folderName },
-      { $pull: { "folders.$.documents": documentName } }
-    );
+    if (!folderName) {
+      await User.updateOne({ _id: id }, { $pull: { documents: documentName } });
+    } else {
+      await User.updateOne(
+        { _id: id, "folders.folderName": folderName },
+        { $pull: { "folders.$.documents": documentName } }
+      );
+    }
     res.send("Folder deleted successfully");
   } catch (err) {
     console.error(err);
@@ -289,7 +292,7 @@ chatGPT.post("/generateResponse", async (req, res) => {
         (item) => item.name === name && item.type === type
       );
     }
-    const newChatHistory = chat_history.history.map(
+    const newChatHistory = chat_history?.history?.map(
       ({ role,content, ...rest }) => ({
         role:role,
         content:content
@@ -339,7 +342,7 @@ chatGPT.post("/generateResponse", async (req, res) => {
     const STANDALONE_QUESTION_TEMPLATE_1 = `Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question.
 
       Chat History:
-      ${newChatHistory.map((item) => `{role: ${item.role}, content:${item.content}}`).join("\n")}
+      ${newChatHistory?.map((item) => `{role: ${item.role}, content:${item.content}}`).join("\n")}
 
       Follow Up Input: {question}
       Standalone question:
