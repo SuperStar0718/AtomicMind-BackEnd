@@ -280,6 +280,25 @@ chatGPT.post("/generateResponse", async (req, res) => {
 
     // const vectorStore = await initializePineconeStore(splittedDocs);
 
+    const user = await User.findById(id);
+    let chat_history;
+    if (type === "allDocuments") {
+      chat_history = user.history.find((item) => item.type === type);
+    } else {
+      chat_history = user.history.find(
+        (item) => item.name === name && item.type === type
+      );
+    }
+    const newChatHistory = chat_history.history.map(
+      ({ role,content, ...rest }) => ({
+        role:role,
+        content:content
+      })
+      );
+      // console.log("chat_history", chat_history.history);
+      // console.log("newChatHistory", newChatHistory);
+      
+
     const pinecone = new Pinecone({
       apiKey: process.env.PINECONE_API_KEY!,
     });
@@ -303,7 +322,7 @@ chatGPT.post("/generateResponse", async (req, res) => {
 
     while (true) {
       const status = await pineconeIndex.describeIndexStats();
-      console.log("Indexed documents:", status.totalRecordCount);
+      // console.log("Indexed documents:", status.totalRecordCount);
 
       if (status.totalRecordCount > 0) {
         console.log("Indexed documents:", status.totalRecordCount);
@@ -316,6 +335,20 @@ chatGPT.post("/generateResponse", async (req, res) => {
     );
     const vectorStoreRetriever = vectorStore.asRetriever(20);
 
+   
+    const STANDALONE_QUESTION_TEMPLATE_1 = `Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question.
+
+      Chat History:
+      ${newChatHistory.map((item) => `{role: ${item.role}, content:${item.content}}`).join("\n")}
+
+      Follow Up Input: {question}
+      Standalone question:
+    `;
+
+    console.log(
+      "STANDALONE_QUESTION_TEMPLATE_1",
+      STANDALONE_QUESTION_TEMPLATE_1
+    );
 
     /**
      * Represents a conversational retrieval QA chain.
@@ -326,7 +359,9 @@ chatGPT.post("/generateResponse", async (req, res) => {
       {
         questionGeneratorChainOptions: {
           llm: nonStreamModel,
+          template: STANDALONE_QUESTION_TEMPLATE_1,
         },
+        qaTemplate: QA_TEMPLATE,
         returnSourceDocuments: true,
         memory: new BufferMemory({
           memoryKey: "chat_history",
@@ -336,17 +371,6 @@ chatGPT.post("/generateResponse", async (req, res) => {
         }),
       }
     );
-
-    const user = await User.findById(id);
-    let chat_history;
-    if (type === "allDocuments") {
-      chat_history = user.history.find((item) => item.type === type);
-    } else {
-      chat_history = user.history.find(
-        (item) => item.name === name && item.type === type
-      );
-    }
-    // console.log("chat_history", chat_history);
 
     const messages = [
       {
@@ -359,10 +383,10 @@ chatGPT.post("/generateResponse", async (req, res) => {
         content: prompt,
       },
     ];
-    console.log("messages", messages);
+    // console.log("messages", messages);
     const response = await chain.call({
       question: prompt,
-      chat_history: chat_history,
+      chat_history: JSON.stringify(chat_history?.history || []),
     });
     const sourceDocuments = [];
     response.sourceDocuments.forEach((doc) => {
@@ -426,8 +450,8 @@ chatGPT.post("/generateResponse", async (req, res) => {
   } catch (err) {
     console.error(err);
     if (!res.headersSent) {
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Internal Server Error' }));
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Internal Server Error" }));
     } else {
       // If headers were already sent, we might not be able to send a proper error response
       // It's important to ensure the connection is properly closed in case of an error.
@@ -435,9 +459,9 @@ chatGPT.post("/generateResponse", async (req, res) => {
     }
   }
 
-   // Additional error handling for the response stream
-   res.on('error', (error) => {
-    console.error('Response stream error:', error);
+  // Additional error handling for the response stream
+  res.on("error", (error) => {
+    console.error("Response stream error:", error);
     // Handle the error, e.g., by logging it. Note that response might be partially sent at this point.
   });
 });
@@ -481,6 +505,5 @@ chatGPT.post("/clearHistory", async (req, res) => {
     res.status(500).send("Internal Server Error");
   }
 });
-
 
 export default chatGPT;
