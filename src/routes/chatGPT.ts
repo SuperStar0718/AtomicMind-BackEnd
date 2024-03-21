@@ -153,11 +153,14 @@ chatGPT.post("/deleteDocument", async (req, res) => {
     const documentName = req.body.documentName;
     const folderName = req.body.folderName;
     const id = req.body.id;
-
-    await User.updateOne(
-      { _id: id, "folders.folderName": folderName },
-      { $pull: { "folders.$.documents": documentName } }
-    );
+    if (!folderName) {
+      await User.updateOne({ _id: id }, { $pull: { documents: documentName } });
+    } else {
+      await User.updateOne(
+        { _id: id, "folders.folderName": folderName },
+        { $pull: { "folders.$.documents": documentName } }
+      );
+    }
     res.send("Folder deleted successfully");
   } catch (err) {
     console.error(err);
