@@ -336,7 +336,7 @@ chatGPT.post("/generateResponse", async (req, res) => {
       new OpenAIEmbeddings(),
       { pineconeIndex: pineconeIndex, namespace: "atomicask", textKey: "text" }
     );
-    const vectorStoreRetriever = vectorStore.asRetriever(20);
+    const vectorStoreRetriever = vectorStore.asRetriever(50);
 
    
     const STANDALONE_QUESTION_TEMPLATE_1 = `Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question.
