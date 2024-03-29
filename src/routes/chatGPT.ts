@@ -182,13 +182,12 @@ chatGPT.post("/generateResponse", async (req, res) => {
     const id = req.body.id;
     const type = req.body.type;
     const name = req.body.name;
-
-    let splittedDocs = [];
+    let splittedDocs = [], docs;
     const processDocuments = async (fileName) => {
       const loader = new PDFLoader(`uploads/${fileName}`);
-      const docs = await loader.load();
+       docs = await loader.load();
       const splitter = new RecursiveCharacterTextSplitter({
-        chunkSize: 1000,
+        chunkSize: 500,
         chunkOverlap: 200,
       });
       return splitter.splitDocuments(docs);
@@ -197,9 +196,10 @@ chatGPT.post("/generateResponse", async (req, res) => {
     // Call the ChatGPT API here
     if (type === "document") {
       const loader = new PDFLoader(`uploads/${name}`);
-      const docs = await loader.load();
+       docs = await loader.load();
+       console.log("docs", docs)
       const splitter = new RecursiveCharacterTextSplitter({
-        chunkSize: 1000,
+        chunkSize: 500,
         chunkOverlap: 200,
       });
       splittedDocs = await splitter.splitDocuments(docs);
@@ -250,8 +250,7 @@ chatGPT.post("/generateResponse", async (req, res) => {
     // });
 
     const streamingModel = new ChatAnthropic({
-      modelName: "claude-3-opus-20240229",
-      maxTokens: 4000,
+      modelName: "claude-3-haiku-20240307",
       temperature: 0.1,
 
       anthropicApiKey: process.env.ANTHROPIC_API_KEY,
@@ -305,41 +304,78 @@ chatGPT.post("/generateResponse", async (req, res) => {
 
     // const vectorStore = await initializePineconeStore(splittedDocs);
 
-    const pinecone = new Pinecone({
-      apiKey: process.env.PINECONE_API_KEY!,
-    });
-
-    const pineconeIndex = pinecone.Index(process.env.PINECONE_INDEX_NAME!);
-    try {
-      await pineconeIndex.namespace("atomicask").deleteAll();
-    } catch (e) {
-      console.log("Error deleting all", e);
+    const user = await User.findById(id);
+    let chat_history;
+    if (type === "allDocuments") {
+      chat_history = user.history.find((item) => item.type === type);
+    } else {
+      chat_history = user.history.find(
+        (item) => item.name === name && item.type === type
+      );
     }
+    const newChatHistory = chat_history?.history?.map(
+      ({ role,content, ...rest }) => ({
+        role:role,
+        content:content
+      })
+      );
+      // console.log("chat_history", chat_history.history);
+      // console.log("newChatHistory", newChatHistory);
+      
+
+    // const pinecone = new Pinecone({
+    //   apiKey: process.env.PINECONE_API_KEY!,
+    // });
+
+    // const pineconeIndex = pinecone.Index(process.env.PINECONE_INDEX_NAME!);
+    // try {
+    //   await pineconeIndex.namespace("atomicask").deleteAll();
+    // } catch (e) {
+    //   console.log("Error deleting all", e);
+    // }
 
     // console.log('pineconeIndex', pineconeIndex);
     const embeddings = new OpenAIEmbeddings();
 
     //embed the PDF documents
-    await PineconeStore.fromDocuments(splittedDocs, embeddings, {
-      pineconeIndex: pineconeIndex,
-      namespace: "atomicask",
-      textKey: "text",
-    });
+    // await PineconeStore.fromDocuments(splittedDocs, embeddings, {
+    //   pineconeIndex: pineconeIndex,
+    //   namespace: "atomicask",
+    //   textKey: "text",
+    // });
 
-    while (true) {
-      const status = await pineconeIndex.describeIndexStats();
-      console.log("Indexed documents:", status.totalRecordCount);
+    // while (true) {
+    //   const status = await pineconeIndex.describeIndexStats();
+    //   // console.log("Indexed documents:", status.totalRecordCount);
 
-      if (status.totalRecordCount > 0) {
-        console.log("Indexed documents:", status.totalRecordCount);
-        break;
-      }
-    }
-    const vectorStore = await PineconeStore.fromExistingIndex(
-      new OpenAIEmbeddings(),
-      { pineconeIndex: pineconeIndex, namespace: "atomicask", textKey: "text" }
+    //   if (status.totalRecordCount > 0) {
+    //     console.log("Indexed documents:", status.totalRecordCount);
+    //     break;
+    //   }
+    // }
+    // const vectorStore = await PineconeStore.fromExistingIndex(
+    //   new OpenAIEmbeddings(),
+    //   { pineconeIndex: pineconeIndex, namespace: "atomicask", textKey: "text" }
+    // );  
+    const vectorStore = await HNSWLib.fromDocuments(docs, embeddings);
+
+
+    const vectorStoreRetriever = vectorStore.asRetriever();
+
+   
+    const STANDALONE_QUESTION_TEMPLATE_1 = `Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question.
+
+      Chat History:
+      ${newChatHistory?.map((item) => `{role: ${item.role}, content:${item.content}}`).join("\n")}
+
+      Follow Up Input: {question}
+      Standalone question:
+    `;
+
+    console.log(
+      "STANDALONE_QUESTION_TEMPLATE_1",
+      STANDALONE_QUESTION_TEMPLATE_1
     );
-    const vectorStoreRetriever = vectorStore.asRetriever(20);
 
     /**
      * Represents a conversational retrieval QA chain.
@@ -350,7 +386,9 @@ chatGPT.post("/generateResponse", async (req, res) => {
       {
         questionGeneratorChainOptions: {
           llm: nonStreamModel,
+          template: STANDALONE_QUESTION_TEMPLATE_1,
         },
+        qaTemplate: QA_TEMPLATE,
         returnSourceDocuments: true,
         memory: new BufferMemory({
           memoryKey: "chat_history",
@@ -361,31 +399,21 @@ chatGPT.post("/generateResponse", async (req, res) => {
       }
     );
 
-    const user = await User.findById(id);
-    let chat_history;
-    if (type === "allDocuments") {
-      chat_history = user.history.find((item) => item.type === type);
-    } else {
-      chat_history = user.history.find(
-        (item) => item.name === name && item.type === type
-      );
-    }
-    // console.log("chat_history", chat_history);
-
     const messages = [
       {
         role: "system",
         content: `You are analyzing the data from PDF files. The provided vector data should be considered as a whole PDF file. You are a general answering assistant that can comply with any request. Don't say that you are sorry or apologize or you don't have full context and so on. You must generate very detailed answer as long  as you can within 50 sentences.  You always answer the with markdown formatting with paragraph structures.`,
       },
+      ...(chat_history?.history?.length > 0 ? chat_history?.history : []),
       {
         role: "user",
         content: prompt,
       },
     ];
-    console.log("messages", messages);
+    // console.log("messages", messages);
     const response = await chain.call({
       question: prompt,
-      chat_history: chat_history,
+      chat_history: JSON.stringify(chat_history?.history || []),
     });
     const sourceDocuments = [];
     response.sourceDocuments.forEach((doc) => {
@@ -397,10 +425,10 @@ chatGPT.post("/generateResponse", async (req, res) => {
     );
     res.end();
     // console.log("res:", response);
-    // await fs.promises.writeFile(
-    //   path.join(__dirname, "../chat_history.json"),
-    //   JSON.stringify(response)
-    // );
+    await fs.promises.writeFile(
+      path.join(__dirname, "../chat_history.json"),
+      JSON.stringify(response)
+    );
 
     if (chat_history) {
       console.log("exists:", type, name);
@@ -448,8 +476,21 @@ chatGPT.post("/generateResponse", async (req, res) => {
     //send response to the client stream.readable
   } catch (err) {
     console.error(err);
-    res.status(500).send("Internal Server Error");
+    if (!res.headersSent) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Internal Server Error" }));
+    } else {
+      // If headers were already sent, we might not be able to send a proper error response
+      // It's important to ensure the connection is properly closed in case of an error.
+      res.end(); // End the response to close the connection
+    }
   }
+
+  // Additional error handling for the response stream
+  res.on("error", (error) => {
+    console.error("Response stream error:", error);
+    // Handle the error, e.g., by logging it. Note that response might be partially sent at this point.
+  });
 });
 
 chatGPT.post("/loadChatHistory", async (req, res) => {
