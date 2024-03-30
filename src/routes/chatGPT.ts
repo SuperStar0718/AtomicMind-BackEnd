@@ -18,7 +18,7 @@ import { OpenAI } from "@langchain/openai";
 
 import { Pinecone } from "@pinecone-database/pinecone";
 import { PineconeStore } from "@langchain/pinecone";
-
+import { ChatAnthropic } from "@langchain/anthropic";
 import { v4 as uuid } from "uuid";
 
 import { FaissStore } from "@langchain/community/vectorstores/faiss";
@@ -182,9 +182,7 @@ chatGPT.post("/generateResponse", async (req, res) => {
     const id = req.body.id;
     const type = req.body.type;
     const name = req.body.name;
-
     let splittedDocs = [], docs;
-
     const processDocuments = async (fileName) => {
       const loader = new PDFLoader(`uploads/${fileName}`);
        docs = await loader.load();
@@ -226,13 +224,11 @@ chatGPT.post("/generateResponse", async (req, res) => {
       splittedDocs = await Promise.all(docPromises).then((docs) => docs.flat());
     }
 
-    /**
-     * The OpenAI instance used for making API calls.
-     * @type {OpenAI}
-
     const streamingModel = new ChatAnthropic({
       modelName: "claude-3-haiku-20240307",
-      openAIApiKey: process.env.OPENAI_API_KEY,
+      temperature: 0.1,
+
+      anthropicApiKey: process.env.ANTHROPIC_API_KEY,
       streaming: true,
       callbacks: [
         {
@@ -247,42 +243,7 @@ chatGPT.post("/generateResponse", async (req, res) => {
         },
       ],
     });
-    // Instantiate a new Pinecone client, which will automatically read the
-    // env vars: PINECONE_API_KEY and PINECONE_ENVIRONMENT which come from
-    // the Pinecone dashboard at https://app.pinecone.io
-
-    // const pinecone = new Pinecone({
-    //   apiKey: process.env.PINECONE_API_KEY!
-    // });
-
-    // const pineconeIndex = pinecone.Index(process.env.PINECONE_INDEX_NAME!);
-    // // console.log('pineconeIndex', pineconeIndex);
-    // const embeddings = new OpenAIEmbeddings({
-    //   openAIApiKey: process.env.OPENAI_API_KEY,
-    // });
-    // const pineconeStore = new PineconeStore(embeddings, { pineconeIndex });
-
-    // //embed the PDF documents
-    // const vectorStore = await PineconeStore.fromDocuments(splittedDocs, embeddings, {
-    //   pineconeIndex: pineconeIndex,
-    //   namespace: 'atomicask',
-    //   textKey: 'text',
-    // });
-
-    // const pinecone = await initPineconeClient();
-    // const vectorStore = await embedAndStoreDocs(pinecone, splittedDocs);
-
-    // Finally store our splitted chunks with open ai embeddings
-    // const vectorStore = await FaissStore.fromDocuments(splittedDocs, embeddings);
-
-    // Load the docs into the vector store
-    // const vectorStore = await FaissStore.fromDocuments(
-    //   splittedDocs,
-    //   new OpenAIEmbeddings({ openAIApiKey: process.env.OPENAI_API_KEY })
-    // );
-
-    // const vectorStore = await initializePineconeStore(splittedDocs);
-
+   
     const user = await User.findById(id);
     let chat_history;
     if (type === "allDocuments") {
@@ -298,9 +259,7 @@ chatGPT.post("/generateResponse", async (req, res) => {
         content:content
       })
       );
-      // console.log("chat_history", chat_history.history);
-      // console.log("newChatHistory", newChatHistory);
-      
+     
 
     const pinecone = new Pinecone({
       apiKey: process.env.PINECONE_API_KEY!,
@@ -339,7 +298,7 @@ chatGPT.post("/generateResponse", async (req, res) => {
     // const vectorStore = await HNSWLib.fromDocuments(docs, embeddings);
 
 
-    const vectorStoreRetriever = vectorStore.asRetriever(4500);
+    const vectorStoreRetriever = vectorStore.asRetriever(450);
 
    
     const STANDALONE_QUESTION_TEMPLATE_1 = `Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question.
@@ -355,24 +314,6 @@ chatGPT.post("/generateResponse", async (req, res) => {
       "STANDALONE_QUESTION_TEMPLATE_1",
       STANDALONE_QUESTION_TEMPLATE_1
     );
-
-    const vectorStoreRetriever = vectorStore.asRetriever(50);
-
-   
-    const STANDALONE_QUESTION_TEMPLATE_1 = `Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question.
-
-      Chat History:
-      ${newChatHistory?.map((item) => `{role: ${item.role}, content:${item.content}}`).join("\n")}
-
-      Follow Up Input: {question}
-      Standalone question:
-    `;
-
-    console.log(
-      "STANDALONE_QUESTION_TEMPLATE_1",
-      STANDALONE_QUESTION_TEMPLATE_1
-    );
-
 
     /**
      * Represents a conversational retrieval QA chain.
@@ -422,10 +363,10 @@ chatGPT.post("/generateResponse", async (req, res) => {
     );
     res.end();
     // console.log("res:", response);
-    await fs.promises.writeFile(
-      path.join(__dirname, "../chat_history.json"),
-      JSON.stringify(response)
-    );
+    // await fs.promises.writeFile(
+    //   path.join(__dirname, "../chat_history.json"),
+    //   JSON.stringify(response)
+    // );
 
     if (chat_history) {
       console.log("exists:", type, name);
