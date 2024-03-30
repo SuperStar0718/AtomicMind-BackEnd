@@ -295,7 +295,6 @@ chatGPT.post("/generateResponse", async (req, res) => {
       new OpenAIEmbeddings(),
       { pineconeIndex: pineconeIndex, namespace: "atomicask", textKey: "text" }
     );  
-    // const vectorStore = await HNSWLib.fromDocuments(docs, embeddings);
 
 
     const vectorStoreRetriever = vectorStore.asRetriever(450);
@@ -310,10 +309,6 @@ chatGPT.post("/generateResponse", async (req, res) => {
       Standalone question:
     `;
 
-    console.log(
-      "STANDALONE_QUESTION_TEMPLATE_1",
-      STANDALONE_QUESTION_TEMPLATE_1
-    );
 
     /**
      * Represents a conversational retrieval QA chain.
@@ -337,18 +332,6 @@ chatGPT.post("/generateResponse", async (req, res) => {
       }
     );
 
-    const messages = [
-      {
-        role: "system",
-        content: `You are analyzing the data from PDF files. The provided vector data should be considered as a whole PDF file. You are a general answering assistant that can comply with any request. Don't say that you are sorry or apologize or you don't have full context and so on. You must generate very detailed answer as long  as you can within 50 sentences.  You always answer the with markdown formatting with paragraph structures.`,
-      },
-      ...(chat_history?.history?.length > 0 ? chat_history?.history : []),
-      {
-        role: "user",
-        content: prompt,
-      },
-    ];
-    // console.log("messages", messages);
     const response = await chain.call({
       question: prompt,
       chat_history: JSON.stringify(chat_history?.history || []),
