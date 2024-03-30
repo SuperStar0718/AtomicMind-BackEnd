@@ -182,10 +182,12 @@ chatGPT.post("/generateResponse", async (req, res) => {
     const id = req.body.id;
     const type = req.body.type;
     const name = req.body.name;
-    let splittedDocs = [];
+
+    let splittedDocs = [], docs;
+
     const processDocuments = async (fileName) => {
       const loader = new PDFLoader(`uploads/${fileName}`);
-      const docs = await loader.load();
+       docs = await loader.load();
       const splitter = new RecursiveCharacterTextSplitter({
         chunkSize: 500,
         chunkOverlap: 200,
@@ -196,7 +198,8 @@ chatGPT.post("/generateResponse", async (req, res) => {
     // Call the ChatGPT API here
     if (type === "document") {
       const loader = new PDFLoader(`uploads/${name}`);
-      const docs = await loader.load();
+       docs = await loader.load();
+       console.log("docs", docs)
       const splitter = new RecursiveCharacterTextSplitter({
         chunkSize: 500,
         chunkOverlap: 200,
@@ -226,12 +229,9 @@ chatGPT.post("/generateResponse", async (req, res) => {
     /**
      * The OpenAI instance used for making API calls.
      * @type {OpenAI}
-     */
-    const streamingModel = new ChatOpenAI({
-      modelName: "gpt-4-turbo-preview",
 
-      temperature: 0.1,
-
+    const streamingModel = new ChatAnthropic({
+      modelName: "claude-3-haiku-20240307",
       openAIApiKey: process.env.OPENAI_API_KEY,
       streaming: true,
       callbacks: [
@@ -335,7 +335,27 @@ chatGPT.post("/generateResponse", async (req, res) => {
     const vectorStore = await PineconeStore.fromExistingIndex(
       new OpenAIEmbeddings(),
       { pineconeIndex: pineconeIndex, namespace: "atomicask", textKey: "text" }
+    );  
+    // const vectorStore = await HNSWLib.fromDocuments(docs, embeddings);
+
+
+    const vectorStoreRetriever = vectorStore.asRetriever(4500);
+
+   
+    const STANDALONE_QUESTION_TEMPLATE_1 = `Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question.
+
+      Chat History:
+      ${newChatHistory?.map((item) => `{role: ${item.role}, content:${item.content}}`).join("\n")}
+
+      Follow Up Input: {question}
+      Standalone question:
+    `;
+
+    console.log(
+      "STANDALONE_QUESTION_TEMPLATE_1",
+      STANDALONE_QUESTION_TEMPLATE_1
     );
+
     const vectorStoreRetriever = vectorStore.asRetriever(50);
 
    
@@ -352,6 +372,7 @@ chatGPT.post("/generateResponse", async (req, res) => {
       "STANDALONE_QUESTION_TEMPLATE_1",
       STANDALONE_QUESTION_TEMPLATE_1
     );
+
 
     /**
      * Represents a conversational retrieval QA chain.
@@ -401,10 +422,10 @@ chatGPT.post("/generateResponse", async (req, res) => {
     );
     res.end();
     // console.log("res:", response);
-    // await fs.promises.writeFile(
-    //   path.join(__dirname, "../chat_history.json"),
-    //   JSON.stringify(response)
-    // );
+    await fs.promises.writeFile(
+      path.join(__dirname, "../chat_history.json"),
+      JSON.stringify(response)
+    );
 
     if (chat_history) {
       console.log("exists:", type, name);
