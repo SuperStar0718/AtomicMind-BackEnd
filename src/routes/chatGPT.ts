@@ -323,44 +323,44 @@ chatGPT.post("/generateResponse", async (req, res) => {
       // console.log("newChatHistory", newChatHistory);
       
 
-    // const pinecone = new Pinecone({
-    //   apiKey: process.env.PINECONE_API_KEY!,
-    // });
+    const pinecone = new Pinecone({
+      apiKey: process.env.PINECONE_API_KEY!,
+    });
 
-    // const pineconeIndex = pinecone.Index(process.env.PINECONE_INDEX_NAME!);
-    // try {
-    //   await pineconeIndex.namespace("atomicask").deleteAll();
-    // } catch (e) {
-    //   console.log("Error deleting all", e);
-    // }
+    const pineconeIndex = pinecone.Index(process.env.PINECONE_INDEX_NAME!);
+    try {
+      await pineconeIndex.namespace("atomicask").deleteAll();
+    } catch (e) {
+      console.log("Error deleting all", e);
+    }
 
     // console.log('pineconeIndex', pineconeIndex);
     const embeddings = new OpenAIEmbeddings();
 
     //embed the PDF documents
-    // await PineconeStore.fromDocuments(splittedDocs, embeddings, {
-    //   pineconeIndex: pineconeIndex,
-    //   namespace: "atomicask",
-    //   textKey: "text",
-    // });
+    await PineconeStore.fromDocuments(splittedDocs, embeddings, {
+      pineconeIndex: pineconeIndex,
+      namespace: "atomicask",
+      textKey: "text",
+    });
 
-    // while (true) {
-    //   const status = await pineconeIndex.describeIndexStats();
-    //   // console.log("Indexed documents:", status.totalRecordCount);
+    while (true) {
+      const status = await pineconeIndex.describeIndexStats();
+      // console.log("Indexed documents:", status.totalRecordCount);
 
-    //   if (status.totalRecordCount > 0) {
-    //     console.log("Indexed documents:", status.totalRecordCount);
-    //     break;
-    //   }
-    // }
-    // const vectorStore = await PineconeStore.fromExistingIndex(
-    //   new OpenAIEmbeddings(),
-    //   { pineconeIndex: pineconeIndex, namespace: "atomicask", textKey: "text" }
-    // );  
-    const vectorStore = await HNSWLib.fromDocuments(docs, embeddings);
+      if (status.totalRecordCount > 0) {
+        console.log("Indexed documents:", status.totalRecordCount);
+        break;
+      }
+    }
+    const vectorStore = await PineconeStore.fromExistingIndex(
+      new OpenAIEmbeddings(),
+      { pineconeIndex: pineconeIndex, namespace: "atomicask", textKey: "text" }
+    );  
+    // const vectorStore = await HNSWLib.fromDocuments(docs, embeddings);
 
 
-    const vectorStoreRetriever = vectorStore.asRetriever();
+    const vectorStoreRetriever = vectorStore.asRetriever(4500);
 
    
     const STANDALONE_QUESTION_TEMPLATE_1 = `Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question.
