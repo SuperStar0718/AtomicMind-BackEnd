@@ -197,7 +197,7 @@ chatGPT.post("/generateResponse", async (req, res) => {
     if (type === "document") {
       const loader = new PDFLoader(`uploads/${name}`);
        docs = await loader.load();
-       console.log("docs", docs)
+      //  console.log("docs", docs)
       const splitter = new RecursiveCharacterTextSplitter({
         chunkSize: 500,
         chunkOverlap: 200,
@@ -259,7 +259,6 @@ chatGPT.post("/generateResponse", async (req, res) => {
         content:content
       })
       );
-     
 
     const pinecone = new Pinecone({
       apiKey: process.env.PINECONE_API_KEY!,
@@ -274,17 +273,17 @@ chatGPT.post("/generateResponse", async (req, res) => {
 
     // console.log('pineconeIndex', pineconeIndex);
     const embeddings = new OpenAIEmbeddings();
-
+    console.log('splited docs:')
     //embed the PDF documents
     await PineconeStore.fromDocuments(splittedDocs, embeddings, {
       pineconeIndex: pineconeIndex,
       namespace: "atomicask",
       textKey: "text",
     });
-
+    console.log('pineconestore')
     while (true) {
       const status = await pineconeIndex.describeIndexStats();
-      // console.log("Indexed documents:", status.totalRecordCount);
+      console.log("Indexed documents:", status.totalRecordCount);
 
       if (status.totalRecordCount > 0) {
         console.log("Indexed documents:", status.totalRecordCount);
@@ -331,7 +330,7 @@ chatGPT.post("/generateResponse", async (req, res) => {
         }),
       }
     );
-
+console.log('before call:')
     const response = await chain.call({
       question: prompt,
       chat_history: JSON.stringify(chat_history?.history || []),
@@ -345,6 +344,7 @@ chatGPT.post("/generateResponse", async (req, res) => {
       `data: ${JSON.stringify({ sourceDocuments: slicedDocuments })}\n\n`
     );
     res.end();
+    console.log('response ended:')
     // console.log("res:", response);
     // await fs.promises.writeFile(
     //   path.join(__dirname, "../chat_history.json"),
