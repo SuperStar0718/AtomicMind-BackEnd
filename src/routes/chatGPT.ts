@@ -227,7 +227,7 @@ chatGPT.post("/generateResponse", async (req, res) => {
     const streamingModel = new ChatAnthropic({
       modelName: "claude-3-haiku-20240307",
       temperature: 0.1,
-
+      maxTokens: 4096,
       anthropicApiKey: process.env.ANTHROPIC_API_KEY,
       streaming: true,
       callbacks: [
