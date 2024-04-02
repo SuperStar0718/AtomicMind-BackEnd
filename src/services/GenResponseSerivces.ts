@@ -10,7 +10,9 @@ import { ChatOpenAI } from "@langchain/openai";
 import { nonStreamModel } from "../lib/llm";
 import { QA_TEMPLATE } from "../lib/prompt-templates";
 import { OpenAIEmbeddings } from "@langchain/openai";
-
+import fs from "fs";
+import multer from "multer";
+import path from "path";
 
 export const genResWithAllDocs = async (req: any, res: any) => {
   try {
