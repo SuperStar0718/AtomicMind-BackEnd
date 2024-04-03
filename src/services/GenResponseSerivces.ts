@@ -38,7 +38,6 @@ export const genResWithAllDocs = async (req: any, res: any) => {
       });
       return splitter.splitDocuments(docs);
     };
-
     // Call the ChatGPT API here
     if (type === "document") {
       const loader = new PDFLoader(`uploads/${name}`);
@@ -153,7 +152,7 @@ export const genResWithAllDocs = async (req: any, res: any) => {
           Follow Up Input: {question}
           Standalone question:
         `;
-
+console.log('boot title:', name? QA_TEMPLATE.replace("[title of book]", name) : QA_TEMPLATE)
     /**
      * Represents a conversational retrieval QA chain.
      */
@@ -165,7 +164,7 @@ export const genResWithAllDocs = async (req: any, res: any) => {
           llm: nonStreamModel,
           template: STANDALONE_QUESTION_TEMPLATE_1,
         },
-        qaTemplate: QA_TEMPLATE,
+        qaTemplate: name? QA_TEMPLATE.replace("[title of book]", name) : QA_TEMPLATE,
         returnSourceDocuments: true,
         memory: new BufferMemory({
           memoryKey: "chat_history",
