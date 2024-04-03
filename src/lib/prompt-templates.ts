@@ -124,11 +124,17 @@ Details, names, numbers, percentages, studies, etc, where relevant are very impo
 
 Use a similar writing style to the document above when completing this task. Here's the task, and the book that the task is asking you to do the task about...
 
-Use subheadings where appropriate. and bullets. Be highly detailed, use all tokens to give the most comprehensive response thanks. If appropriate, supply all tips, and the numbers, percentages, full data, studies and other proof used by the author to support it. 
+Use subheadings where appropriate. and bullets. Be highly detailed, use all tokens to give the most comprehensive response thanks. If appropriate, supply all tips, and the numbers, percentages, full data, studies and other proof used by the author to support it.
+
+=======End Example.========
+
+Please read the example document above first, as it contains important information and then complete this task:
+Book Title: [title of book]
+Question: {question}
 
 
 {context}
 
-Question: {question}
+
 Helpful answer in markdown:
 `;
