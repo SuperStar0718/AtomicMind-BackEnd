@@ -27,6 +27,7 @@ export const genResWithAllDocs = async (req: any, res: any) => {
     const id = req.body.id;
     const type = req.body.type;
     const name = req.body.name;
+    const documentTitle = req.body.documentTitle
     let splittedDocs = [],
       docs;
     const processDocuments = async (fileName) => {
@@ -152,7 +153,7 @@ export const genResWithAllDocs = async (req: any, res: any) => {
           Follow Up Input: {question}
           Standalone question:
         `;
-console.log('boot title:', name? QA_TEMPLATE.replace("[title of book]", name) : QA_TEMPLATE)
+console.log('boot title:', name? QA_TEMPLATE.replace("[title of book]", documentTitle) : QA_TEMPLATE)
     /**
      * Represents a conversational retrieval QA chain.
      */
@@ -164,7 +165,7 @@ console.log('boot title:', name? QA_TEMPLATE.replace("[title of book]", name) : 
           llm: nonStreamModel,
           template: STANDALONE_QUESTION_TEMPLATE_1,
         },
-        qaTemplate: name? QA_TEMPLATE.replace("[title of book]", name) : QA_TEMPLATE,
+        qaTemplate: name? QA_TEMPLATE.replace("[title of book]", documentTitle) : QA_TEMPLATE,
         returnSourceDocuments: true,
         memory: new BufferMemory({
           memoryKey: "chat_history",
@@ -272,6 +273,7 @@ export const genRestWithSimilarity = async (req: any, res: any) => {
         const id = req.body.id;
         const type = req.body.type;
         const name = req.body.name;
+        const documentTitle = req.body.documentTitle;
         let splittedDocs = [];
         const processDocuments = async (fileName) => {
           const loader = new PDFLoader(`uploads/${fileName}`);
