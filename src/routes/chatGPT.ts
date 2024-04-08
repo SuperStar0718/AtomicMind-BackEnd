@@ -1,5 +1,5 @@
 import { Router } from "express";
-import User from "../schemas/user.model";
+import User, { IDocument } from "../schemas/user.model";
 import fs from "fs";
 import multer from "multer";
 import path from "path";
@@ -40,7 +40,10 @@ import { nonStreamModel } from "../lib/llm";
 import { QA_TEMPLATE } from "../lib/prompt-templates";
 import { STANDALONE_QUESTION_TEMPLATE } from "../lib/prompt-templates";
 import { initializePineconeStore } from "../services/PineconeService";
-import { genResWithAllDocs, genRestWithSimilarity } from "../services/GenResponseSerivces";
+import {
+  genResWithAllDocs,
+  genRestWithSimilarity,
+} from "../services/GenResponseSerivces";
 import { Request, Response } from "express-serve-static-core";
 import { ParsedQs } from "qs";
 
@@ -60,7 +63,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 export interface IFolder {
   folderName: string;
-  documents: string[];
+  documents: IDocument[];
 }
 chatGPT.post("/uploadFiles", upload.any(), async (req, res) => {
   try {
@@ -76,7 +79,10 @@ chatGPT.post("/uploadFiles", upload.any(), async (req, res) => {
     const files = Array.isArray(req.files)
       ? req.files
       : Object.values(req.files);
-    const fileNames = files.map((file) => file.filename);
+    const fileNames: IDocument[] = files.map((file) => ({
+      fileName: file.filename,
+      bookTitle: "",
+    }));
     const folderName = req.body.folderName;
     console.log("folderName", folderName);
     if (
@@ -120,11 +126,14 @@ chatGPT.post("/uploadFiles", upload.any(), async (req, res) => {
 
 chatGPT.post("/moveToFolder", async (req, res) => {
   try {
-    const { id, folderName, documentName } = req.body;
-    await User.updateOne({ _id: id }, { $pull: { documents: documentName } });
+    const { id, folderName, fileName } = req.body;
+    await User.updateOne(
+      { _id: id },
+      { $pull: { documents: { fileName: fileName } } }
+    );
     await User.updateOne(
       { _id: id, "folders.folderName": folderName },
-      { $addToSet: { "folders.$.documents": documentName } }
+      { $addToSet: { "folders.$.documents": { fileName: fileName } } }
     );
     res.send("Document moved successfully");
   } catch (err) {
@@ -153,15 +162,18 @@ chatGPT.post("/deleteFolder", async (req, res) => {
 chatGPT.post("/deleteDocument", async (req, res) => {
   try {
     console.log(req.body);
-    const documentName = req.body.documentName;
+    const fileName = req.body.fileName;
     const folderName = req.body.folderName;
     const id = req.body.id;
     if (!folderName) {
-      await User.updateOne({ _id: id }, { $pull: { documents: documentName } });
+      await User.updateOne(
+        { _id: id },
+        { $pull: { documents: { fileName: fileName } } }
+      );
     } else {
       await User.updateOne(
         { _id: id, "folders.folderName": folderName },
-        { $pull: { "folders.$.documents": documentName } }
+        { $pull: { "folders.$.documents": { fileName: fileName } } }
       );
     }
     res.send("Folder deleted successfully");
