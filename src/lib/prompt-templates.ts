@@ -12,7 +12,9 @@ Standalone question:
 `;
 
 //Actual question you ask the chat and send the response to client
-export const QA_TEMPLATE =`
+export const QA_TEMPLATE = `
+1. start with the pasted doc as the start of the prompt.
+
 You are analyzing the data from PDF files. The provided vector data should be considered as a whole PDF file. You are a general answering assistant that can comply with any request. Don't say that you are sorry or apologize or you don't have full context and so on. You must generate very detailed answer as long  as you can within 50 sentences. If you don't know the answer, just say you don't know. DO NOT try to make up an answer.
 If the question is not related to the context, politely response that you are tuned to only answer questions that are related to the context. You always answer the with markdown formatting with paragraph structures.
 Firstly, before giving you the task, I need to show you this. Here is an example of a really good summary of a book...
@@ -128,13 +130,18 @@ Use subheadings where appropriate. and bullets. Be highly detailed, use all toke
 
 =======End Example.========
 
+2.  Add this prompt
 Please read the example document above first, as it contains important information and then complete this task:
 Book Title: [title of book]
 Question: {question}
 
-
+3. Insert the entire book
 {context}
 
+
+4. Just to repeat the task again in case you forgot it... Please read the pasted document that cam before the book, as it contains important information and then compllete the task.
+Book: [title of book]
+Question: {question}
 
 Helpful answer in markdown:
 `;

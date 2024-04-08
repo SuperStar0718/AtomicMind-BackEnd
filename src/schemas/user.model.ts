@@ -1,27 +1,33 @@
-import mongoose, { Document, Schema } from 'mongoose';
-import bcrypt from 'bcrypt';
+import mongoose, { Document, Schema } from "mongoose";
+import bcrypt from "bcrypt";
 
-
-interface IChatHitory{
-  role:string;
-  content:string;
-  sourceDocuments:any[];
+interface IChatHitory {
+  role: string;
+  content: string;
+  sourceDocuments: any[];
 }
-interface IHistory{
+
+interface IHistory {
   type: string;
-  name:string;
+  name: string;
   history: IChatHitory[];
 }
+
+export interface IDocument {
+  fileName: string;
+  bookTitle: string;
+}
+
 interface IUser extends Document {
   email: string;
   password: string;
   folders: [
     {
       folderName: string;
-      documents: string[];
-    },
+      documents: IDocument[];
+    }
   ];
-  documents: string[];
+  documents: IDocument[];
   history: IHistory[];
   createdAt: Date;
   updatedAt: Date;
@@ -29,7 +35,6 @@ interface IUser extends Document {
 
 const UserSchema: Schema = new Schema(
   {
-    
     email: {
       type: String,
       unique: true,
@@ -46,19 +51,28 @@ const UserSchema: Schema = new Schema(
         },
         documents: [
           {
-            type: String,
-            required:true,
+            fileName: {
+              type: String,
+              required: true,
+            },
+            bookTitle: {
+              type: String,
+            },
           },
         ],
       },
     ],
     documents: [
       {
-        type: String,
-        required: true,
+        fileName: {
+          type: String,
+          required: true,
+        },
+        bookTitle: {
+          type: String,
+        },
       },
-    ]
-    ,
+    ],
     history: [
       {
         type: {
@@ -78,17 +92,17 @@ const UserSchema: Schema = new Schema(
               type: String,
               required: true,
             },
-            sourceDocuments:[
+            sourceDocuments: [
               {
                 type: Object,
-              }
-            ]
+              },
+            ],
           },
         ],
       },
     ],
   },
-  { timestamps: true },
+  { timestamps: true }
 );
 
-export default mongoose.model<IUser>('User', UserSchema);
+export default mongoose.model<IUser>("User", UserSchema);
