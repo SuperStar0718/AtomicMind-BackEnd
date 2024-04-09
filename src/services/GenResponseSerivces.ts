@@ -8,8 +8,6 @@ import { ConversationalRetrievalQAChain } from "langchain/chains";
 import { BufferMemory } from "langchain/memory";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { ChatOpenAI } from "@langchain/openai";
-import { nonStreamModel } from "../lib/llm";
-import { QA_TEMPLATE } from "../lib/prompt-templates";
 import { OpenAIEmbeddings } from "@langchain/openai";
 import fs from "fs";
 import multer from "multer";
@@ -26,7 +24,7 @@ export const genResWithAllDocs = async (req: any, res: any) => {
 
     //get system settings
     const settings = await Setting.findOne();
-    console.log('settings:', settings);
+    console.log("settings:", settings);
 
     const prompt = req.body.prompt.content;
     const id = req.body.id;
@@ -71,8 +69,8 @@ export const genResWithAllDocs = async (req: any, res: any) => {
       const loader = new PDFLoader(`uploads/${fileName}`);
       docs = await loader.load();
       const splitter = new RecursiveCharacterTextSplitter({
-        chunkSize: 500,
-        chunkOverlap: 200,
+        chunkSize: settings.chunkSize,
+        chunkOverlap: settings.chunkOverlap,
       });
       return splitter.splitDocuments(docs);
     };
@@ -107,25 +105,68 @@ export const genResWithAllDocs = async (req: any, res: any) => {
       splittedDocs = await Promise.all(docPromises).then((docs) => docs.flat());
     }
 
-    const streamingModel = new ChatAnthropic({
-      modelName: "claude-3-haiku-20240307",
-      temperature: settings.streamTemperature,
-      maxTokens: 4096,
-      anthropicApiKey: process.env.ANTHROPIC_API_KEY,
-      streaming: true,
-      callbacks: [
-        {
-          async handleLLMNewToken(token) {
-            // console.log("Token:", token);
-            res.write(`data: ${JSON.stringify(token)}\n\n`);
-            res.flushHeaders();
+    //check if streaming model is claude3 or gpt4 model
+    let streamingModel;
+    if (settings.streamingModel.includes("claude")) {
+      streamingModel = new ChatAnthropic({
+        modelName: settings.streamingModel,
+        temperature: settings.streamTemperature,
+        maxTokens: 4096,
+        anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+        streaming: true,
+        callbacks: [
+          {
+            async handleLLMNewToken(token) {
+              // console.log("Token:", token);
+              res.write(`data: ${JSON.stringify(token)}\n\n`);
+              res.flushHeaders();
+            },
+            async handleLLMEnd() {
+              // res.end();
+            },
           },
-          async handleLLMEnd() {
-            // res.end();
+        ],
+      });
+    } else if (settings.streamingModel.includes("gpt")) {
+      streamingModel = new ChatOpenAI({
+        modelName: settings.streamingModel,
+        temperature: settings.streamTemperature,
+        openAIApiKey: process.env.OPENAI_API_KEY,
+        streaming: true,
+        callbacks: [
+          {
+            async handleLLMNewToken(token) {
+              // console.log("Token:", token);
+              res.write(`data: ${JSON.stringify(token)}\n\n`);
+              res.flushHeaders();
+            },
+            async handleLLMEnd() {
+              // res.end();
+            },
           },
-        },
-      ],
-    });
+        ],
+      });
+    }
+
+    // const streamingModel = new ChatAnthropic({
+    //   modelName: "claude-3-haiku-20240307",
+    //   temperature: settings.streamTemperature,
+    //   maxTokens: 4096,
+    //   anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+    //   streaming: true,
+    //   callbacks: [
+    //     {
+    //       async handleLLMNewToken(token) {
+    //         // console.log("Token:", token);
+    //         res.write(`data: ${JSON.stringify(token)}\n\n`);
+    //         res.flushHeaders();
+    //       },
+    //       async handleLLMEnd() {
+    //         // res.end();
+    //       },
+    //     },
+    //   ],
+    // });
 
     const user = await User.findById(id);
     let chat_history;
@@ -190,10 +231,37 @@ export const genResWithAllDocs = async (req: any, res: any) => {
           Follow Up Input: {question}
           Standalone question:
         `;
+
+    const QA_TEMPLATE = settings.systemPrompt;
     console.log(
       "boot title:",
       name ? QA_TEMPLATE.replace("[title of book]", documentTitle) : QA_TEMPLATE
     );
+
+    //check if nonstreammodel is claude or gpt
+    let nonStreamModel;
+    if (settings.nonStreamingModel.includes("claude")) {
+      nonStreamModel = new ChatAnthropic({
+        modelName: settings.nonStreamingModel,
+        maxTokens: 4000,
+        temperature: settings.nonStreamTemperature,
+        anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+      });
+    } else if (settings.nonStreamingModel.includes("gpt")) {
+      nonStreamModel = new ChatOpenAI({
+        modelName: settings.nonStreamingModel,
+        temperature: settings.nonStreamTemperature,
+        openAIApiKey: process.env.OPENAI_API_KEY,
+      });
+    }
+
+    // const nonStreamModel = new ChatAnthropic({
+    //   modelName: "claude-3-opus-20240229",
+    //   maxTokens: 4000,
+    //   temperature: settings.nonStreamTemperature,
+    //   anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+    // });
+
     /**
      * Represents a conversational retrieval QA chain.
      */
@@ -317,8 +385,8 @@ export const genRestWithSimilarity = async (req: any, res: any) => {
     const name = req.body.name;
     const documentTitle = req.body.documentTitle;
     let splittedDocs = [];
-    const processDocuments = async (fileName) => {
-      const loader = new PDFLoader(`uploads/${fileName}`);
+    const processDocuments = async (document) => {
+      const loader = new PDFLoader(`uploads/${document.fileName}`);
       const docs = await loader.load();
       const splitter = new RecursiveCharacterTextSplitter({
         chunkSize: settings.chunkSize,
@@ -326,7 +394,7 @@ export const genRestWithSimilarity = async (req: any, res: any) => {
       });
       return splitter.splitDocuments(docs);
     };
-
+    let user;
     // Call the ChatGPT API here
     if (type === "document") {
       const loader = new PDFLoader(`uploads/${name}`);
@@ -337,14 +405,14 @@ export const genRestWithSimilarity = async (req: any, res: any) => {
       });
       splittedDocs = await splitter.splitDocuments(docs);
     } else if (type === "folder") {
-      const documents = await User.findById(id, {
+      user = await User.findById(id, {
         folders: { $elemMatch: { folderName: name } },
       });
-      const fileNames = documents.folders[0].documents;
-      const docPromises = fileNames.map(processDocuments);
+      const documents = user.folders[0].documents;
+      const docPromises = documents.map(processDocuments);
       splittedDocs = await Promise.all(docPromises).then((docs) => docs.flat());
     } else {
-      const user = await User.findById(id);
+       user = await User.findById(id);
       user.folders.forEach(async (folder) => {
         const fileNames = folder.documents;
         const docPromises = fileNames.map(processDocuments);
@@ -357,32 +425,73 @@ export const genRestWithSimilarity = async (req: any, res: any) => {
       splittedDocs = await Promise.all(docPromises).then((docs) => docs.flat());
     }
 
-    /**
-     * The OpenAI instance used for making API calls.
-     * @type {OpenAI}
-     */
-    const streamingModel = new ChatOpenAI({
-      modelName: "gpt-4-turbo-preview",
-
-      temperature: settings.streamTemperature,
-
-      openAIApiKey: process.env.OPENAI_API_KEY,
-      streaming: true,
-      callbacks: [
-        {
-          async handleLLMNewToken(token) {
-            // console.log("Token:", token);
-            res.write(`data: ${JSON.stringify(token)}\n\n`);
-            res.flushHeaders();
+    //check if streaming model is claude or gpt
+    let streamingModel;
+    if (settings.streamingModel.includes("claude")) {
+      streamingModel = new ChatAnthropic({
+        modelName: settings.streamingModel,
+        temperature: settings.streamTemperature,
+        maxTokens: 4096,
+        anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+        streaming: true,
+        callbacks: [
+          {
+            async handleLLMNewToken(token) {
+              // console.log("Token:", token);
+              res.write(`data: ${JSON.stringify(token)}\n\n`);
+              res.flushHeaders();
+            },
+            async handleLLMEnd() {
+              // res.end();
+            },
           },
-          async handleLLMEnd() {
-            // res.end();
+        ],
+      });
+    } else if (settings.streamingModel.includes("gpt")) {
+      streamingModel = new ChatOpenAI({
+        modelName: settings.streamingModel,
+        temperature: settings.streamTemperature,
+        openAIApiKey: process.env.OPENAI_API_KEY,
+        streaming: true,
+        callbacks: [
+          {
+            async handleLLMNewToken(token) {
+              // console.log("Token:", token);
+              res.write(`data: ${JSON.stringify(token)}\n\n`);
+              res.flushHeaders();
+            },
+            async handleLLMEnd() {
+              // res.end();
+            },
           },
-        },
-      ],
-    });
+        ],
+      });
+    }
 
-    const user = await User.findById(id);
+
+   
+    // const streamingModel = new ChatOpenAI({
+    //   modelName: "gpt-4-turbo-preview",
+
+    //   temperature: settings.streamTemperature,
+
+    //   openAIApiKey: process.env.OPENAI_API_KEY,
+    //   streaming: true,
+    //   callbacks: [
+    //     {
+    //       async handleLLMNewToken(token) {
+    //         // console.log("Token:", token);
+    //         res.write(`data: ${JSON.stringify(token)}\n\n`);
+    //         res.flushHeaders();
+    //       },
+    //       async handleLLMEnd() {
+    //         // res.end();
+    //       },
+    //     },
+    //   ],
+    // });
+
+    user = await User.findById(id);
     let chat_history;
     if (type === "allDocuments") {
       chat_history = user.history.find((item) => item.type === type);
@@ -451,6 +560,32 @@ export const genRestWithSimilarity = async (req: any, res: any) => {
       "STANDALONE_QUESTION_TEMPLATE_1",
       STANDALONE_QUESTION_TEMPLATE_1
     );
+
+    //check if nonstreaming model is claude or gpt
+    let nonStreamModel;
+    if (settings.nonStreamingModel.includes("claude")) {
+      nonStreamModel = new ChatAnthropic({
+        modelName: settings.nonStreamingModel,
+        maxTokens: 4000,
+        temperature: settings.nonStreamTemperature,
+        anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+      });
+    } else if (settings.nonStreamingModel.includes("gpt")) {
+      nonStreamModel = new ChatOpenAI({
+        modelName: settings.nonStreamingModel,
+        temperature: settings.nonStreamTemperature,
+        openAIApiKey: process.env.OPENAI_API_KEY,
+      });
+    }
+
+    // const nonStreamModel = new ChatAnthropic({
+    //   modelName: "claude-3-opus-20240229",
+    //   maxTokens: 4000,
+    //   temperature: settings.nonStreamTemperature,
+    //   anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+    // });
+
+    const QA_TEMPLATE = settings.systemPrompt;
 
     /**
      * Represents a conversational retrieval QA chain.
