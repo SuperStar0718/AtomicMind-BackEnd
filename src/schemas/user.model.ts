@@ -18,9 +18,15 @@ export interface IDocument {
   bookTitle: string;
 }
 
+enum Role{
+  ADMIN = 'ADMIN',
+  USER = 'USER',
+}
+
 interface IUser extends Document {
   email: string;
   password: string;
+  role: Role;
   folders: [
     {
       folderName: string;
@@ -42,6 +48,11 @@ const UserSchema: Schema = new Schema(
     password: {
       type: String,
       required: true,
+    },
+    role: {
+      type: String,
+      enum: Object.values(Role),
+      default: Role.USER,
     },
     folders: [
       {

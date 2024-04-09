@@ -2,6 +2,7 @@
 import express, { Express, Request, Response , Application } from 'express';
 import dotenv from 'dotenv';
 import Auth from './routes/api';
+import Admin from './routes/admin';
 import bodyParser from 'body-parser';
 import path from 'path';
 import cors from 'cors';
@@ -39,7 +40,8 @@ app.use((req, res, next) => {
 app.use(bodyParser.json());
 
 app.use('/api/users', Auth);
-app.use('/api/chat', chatGPT)
+app.use('/api/chat', chatGPT);
+app.use('/api/admin', Admin);
 
 // app.use('/api/users', (req, res)=>{
 //   console.log("req", req.body);

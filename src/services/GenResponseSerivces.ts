@@ -1,5 +1,6 @@
 import { PDFLoader } from "langchain/document_loaders/fs/pdf";
 import User from "../schemas/user.model";
+import Setting from "../schemas/setting.model";
 import { Pinecone } from "@pinecone-database/pinecone";
 import { PineconeStore } from "@langchain/pinecone";
 import { ChatAnthropic } from "@langchain/anthropic";
@@ -22,6 +23,10 @@ export const genResWithAllDocs = async (req: any, res: any) => {
       "Cache-Control": "no-cache",
       Connection: "keep-alive",
     });
+
+    //get system settings
+    const settings = await Setting.findOne();
+    console.log('settings:', settings);
 
     const prompt = req.body.prompt.content;
     const id = req.body.id;
@@ -77,8 +82,8 @@ export const genResWithAllDocs = async (req: any, res: any) => {
       docs = await loader.load();
       //  console.log("docs", docs)
       const splitter = new RecursiveCharacterTextSplitter({
-        chunkSize: 500,
-        chunkOverlap: 200,
+        chunkSize: settings.chunkSize,
+        chunkOverlap: settings.chunkOverlap,
       });
       splittedDocs = await splitter.splitDocuments(docs);
     } else if (type === "folder") {
@@ -104,7 +109,7 @@ export const genResWithAllDocs = async (req: any, res: any) => {
 
     const streamingModel = new ChatAnthropic({
       modelName: "claude-3-haiku-20240307",
-      temperature: 0.1,
+      temperature: settings.streamTemperature,
       maxTokens: 4096,
       anthropicApiKey: process.env.ANTHROPIC_API_KEY,
       streaming: true,
@@ -305,7 +310,7 @@ export const genRestWithSimilarity = async (req: any, res: any) => {
       Connection: "keep-alive",
     });
 
-    console.log(req.body);
+    const settings = await Setting.findOne();
     const prompt = req.body.prompt.content;
     const id = req.body.id;
     const type = req.body.type;
@@ -316,8 +321,8 @@ export const genRestWithSimilarity = async (req: any, res: any) => {
       const loader = new PDFLoader(`uploads/${fileName}`);
       const docs = await loader.load();
       const splitter = new RecursiveCharacterTextSplitter({
-        chunkSize: 500,
-        chunkOverlap: 200,
+        chunkSize: settings.chunkSize,
+        chunkOverlap: settings.chunkOverlap,
       });
       return splitter.splitDocuments(docs);
     };
@@ -327,8 +332,8 @@ export const genRestWithSimilarity = async (req: any, res: any) => {
       const loader = new PDFLoader(`uploads/${name}`);
       const docs = await loader.load();
       const splitter = new RecursiveCharacterTextSplitter({
-        chunkSize: 500,
-        chunkOverlap: 200,
+        chunkSize: settings.chunkSize,
+        chunkOverlap: settings.chunkOverlap,
       });
       splittedDocs = await splitter.splitDocuments(docs);
     } else if (type === "folder") {
@@ -359,7 +364,7 @@ export const genRestWithSimilarity = async (req: any, res: any) => {
     const streamingModel = new ChatOpenAI({
       modelName: "gpt-4-turbo-preview",
 
-      temperature: 0.1,
+      temperature: settings.streamTemperature,
 
       openAIApiKey: process.env.OPENAI_API_KEY,
       streaming: true,
