@@ -31,23 +31,34 @@ export const genResWithAllDocs = async (req: any, res: any) => {
     const folderName = req.body.folderName;
 
     //update bookTitle with documentTitle that matches with type and name
-    // await User.findOneAndUpdate(
-    //   { _id: id, "documents.fileName": name },
-    //   { $set: { "documents.$.bookTitle": documentTitle } }
-    // );
 
-    await User.findOneAndUpdate(
-      { _id: id, "folders.folderName": folderName },
-      {
-        $set: { "folders.$[elem].documents.$[elem2].bookTitle": documentTitle },
-      },
-      {
-        arrayFilters: [
-          { "elem.folderName": folderName, "elem2.fileName": name },
-        ],
-        new: true,
-      }
-    );
+    try {
+      await User.findOneAndUpdate(
+        { _id: id, "documents.fileName": name },
+        { $set: { "documents.$.bookTitle": documentTitle } }
+      );
+    } catch (err) {
+      console.log("Error updating bookTitle", err);
+    }
+
+    try {
+      await User.findOneAndUpdate(
+        { _id: id, "folders.folderName": folderName },
+        {
+          $set: {
+            "folders.$[elem].documents.$[elem2].bookTitle": documentTitle,
+          },
+        },
+        {
+          arrayFilters: [
+            { "elem.folderName": folderName, "elem2.fileName": name },
+          ],
+          new: true,
+        }
+      );
+    } catch (err) {
+      console.log("Error updating bookTitle", err);
+    }
 
     let splittedDocs = [],
       docs;
