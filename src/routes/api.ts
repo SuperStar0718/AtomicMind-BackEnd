@@ -42,7 +42,10 @@ Auth.post("/login", async (req: Request, res: Response) => {
     const isMatch = await bcrypt.compare(req.body.password, user.password);
     if (isMatch) {
       jwt.sign(
-        { payload: user },
+        { payload: {
+          email: user.email,
+          role: user.role,
+        } },
         process.env.JWT_SECRET as string,
         { expiresIn: "5 days" },
         (err, token) => {
@@ -59,7 +62,7 @@ Auth.post("/login", async (req: Request, res: Response) => {
 });
 
 Auth.get("/auth", auth, async (req: IRequest, res: Response) => {
-  const user = await User.findOne({ email: req.email.email });
+  const user = await User.findOne({ email: req.email });
   res.status(200).send(user);
 });
 

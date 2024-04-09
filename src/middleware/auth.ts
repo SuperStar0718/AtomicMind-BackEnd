@@ -8,7 +8,7 @@ config();
 const JWT: string = process.env.JWT_SECRET || "";
 
 export interface IRequest extends Request {
-  email?: any;
+  email?: string;
 }
 
 const auth = (req: IRequest, res: Response, next: NextFunction) => {
@@ -26,7 +26,8 @@ const auth = (req: IRequest, res: Response, next: NextFunction) => {
       if (error) {
         return res.status(401).json({ msg: "Token is not valid" });
       } else {
-        req.email = (decoded as JwtPayload).payload;
+        req.email = (decoded as JwtPayload).payload.email;
+        console.log('decoded:', decoded);
         // if ((decoded as JwtPayload).user.role !== 'business') return res.status(HttpStatusCodes.BAD_REQUEST).json({ msg: 'Token is not valid' });
         next();
       }
