@@ -11,10 +11,10 @@ import { ChatOpenAI } from "@langchain/openai";
 // });
 
 
-export const nonStreamModel = new ChatAnthropic({
-  modelName: "claude-3-opus-20240229",
-  maxTokens: 4000,
-  temperature: 1,
-  anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+// export const nonStreamModel = new ChatAnthropic({
+//   modelName: "claude-3-opus-20240229",
+//   maxTokens: 4000,
+//   temperature: 1,
+//   anthropicApiKey: process.env.ANTHROPIC_API_KEY,
  
-});
+// });

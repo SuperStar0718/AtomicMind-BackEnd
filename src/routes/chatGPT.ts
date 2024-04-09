@@ -36,7 +36,6 @@ import { ChatOpenAI } from "@langchain/openai";
 import mongoose from "mongoose";
 import { initPineconeClient } from "../lib/pinecone-clinet";
 import { embedAndStoreDocs } from "../lib/vector-store";
-import { nonStreamModel } from "../lib/llm";
 import { QA_TEMPLATE } from "../lib/prompt-templates";
 import { STANDALONE_QUESTION_TEMPLATE } from "../lib/prompt-templates";
 import { initializePineconeStore } from "../services/PineconeService";
