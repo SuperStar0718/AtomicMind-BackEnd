@@ -2,6 +2,7 @@ import mongoose, { Document, Schema } from "mongoose";
 import bcrypt from "bcrypt";
 
 interface ISetting extends Document {
+  environment: string;
   streamTemperature: number;
   nonStreamTemperature: number;
   chunkSize: number;
@@ -15,6 +16,10 @@ interface ISetting extends Document {
 
 const SettingSchema: Schema = new Schema(
   {
+    environment: {
+      type: String,
+      required: true,
+    },
     streamTemperature: {
       type: Number,
       required: true,
