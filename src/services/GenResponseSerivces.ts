@@ -54,7 +54,8 @@ export const genResWithAllDocs = async (req: any, res: any) => {
         },
         {
           arrayFilters: [
-            { "elem.folderName": folderName, "elem2.fileName": name },
+            { "elem.folderName": folderName },
+            { "elem2.fileName": name },
           ],
           new: true,
         }
