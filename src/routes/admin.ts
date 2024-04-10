@@ -11,8 +11,9 @@ import bcrypt from "bcrypt";
 const Admin = Router();
 const validate = jetValidator();
 
-Admin.post("/setSettings",  async (req: any, res: Response) => {
+Admin.post("/setSettings", async (req: any, res: Response) => {
   const {
+    environment,
     streamTemperature,
     nonStreamTemperature,
     chunkSize,
@@ -21,11 +22,12 @@ Admin.post("/setSettings",  async (req: any, res: Response) => {
     streamingModel,
     nonStreamingModel,
   } = req.body;
-  console.log('systemPrompt:', systemPrompt);
-  
+  console.log("systemPrompt:", systemPrompt);
+
   Setting.findOneAndUpdate(
-    {},
+    { environment: environment },
     {
+      environment,
       streamTemperature,
       nonStreamTemperature,
       chunkSize,
@@ -48,7 +50,7 @@ Admin.post("/setSettings",  async (req: any, res: Response) => {
 Admin.get("/settings", (req, res) => {
   Setting.find()
     .select(
-      "streamTemperature nonStreamTemperature chunkSize chunkOverlap systemPrompt streamingModel nonStreamingModel -_id"
+      "environment streamTemperature nonStreamTemperature chunkSize chunkOverlap systemPrompt streamingModel nonStreamingModel -_id"
     )
     .then((settings) => {
       res.send(settings);
@@ -58,5 +60,44 @@ Admin.get("/settings", (req, res) => {
       res.status(500).send("Internal Server Error");
     });
 });
+
+Admin.post("/saveAsEnvironment", async (req, res) => {
+  const {
+    newEnv,
+    streamTemperature,
+    nonStreamTemperature,
+    chunkSize,
+    chunkOverlap,
+    systemPrompt,
+    streamingModel,
+    nonStreamingModel,
+  } = req.body;
+
+  const newSettings = new Setting({
+    environment: newEnv,
+    streamTemperature: streamTemperature,
+    nonStreamTemperature: nonStreamTemperature,
+    chunkSize: chunkSize,
+    chunkOverlap: chunkOverlap,
+    systemPrompt: systemPrompt,
+    streamingModel: streamingModel,
+    nonStreamingModel: nonStreamingModel,
+  });
+  newSettings.save().then((settings) => {
+    res.send(settings);
+  });
+});
+
+Admin.post("/deleteEnvironment", async (req, res) => {
+  const { environment } = req.body;
+  Setting.deleteOne({ environment: environment })
+    .then((settings) => {
+      res.send(settings);
+    })
+    .catch((err) => {
+      console.log(err);
+      res.status(500).send("Internal Server Error");
+    });
+  });
 
 export default Admin;
