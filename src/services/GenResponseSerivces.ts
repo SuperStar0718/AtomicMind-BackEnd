@@ -22,19 +22,20 @@ export const genResWithAllDocs = async (req: any, res: any) => {
       Connection: "keep-alive",
     });
 
-    //get system settings
-    const settings = await Setting.findOne();
-    console.log("settings:", settings);
-
+    
     const prompt = req.body.prompt.content;
     const id = req.body.id;
     const type = req.body.type;
     const name = req.body.name;
     const documentTitle = req.body.documentTitle;
     const folderName = req.body.folderName;
-
+    const environment = req.body.environment;
+    
+    //get system settings
+    const settings = await Setting.findOne({environment: environment});
+    console.log("settings:", settings);
     //update bookTitle with documentTitle that matches with type and name
-
+    
     try {
       await User.findOneAndUpdate(
         { _id: id, "documents.fileName": name },
@@ -379,12 +380,13 @@ export const genRestWithSimilarity = async (req: any, res: any) => {
       Connection: "keep-alive",
     });
 
-    const settings = await Setting.findOne();
     const prompt = req.body.prompt.content;
     const id = req.body.id;
     const type = req.body.type;
     const name = req.body.name;
     const documentTitle = req.body.documentTitle;
+    const environment = req.body.environment;
+    const settings = await Setting.findOne({environment:environment});
     let splittedDocs = [];
     const processDocuments = async (document) => {
       const loader = new PDFLoader(`uploads/${document.fileName}`);
