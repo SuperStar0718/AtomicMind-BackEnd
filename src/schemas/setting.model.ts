@@ -8,6 +8,7 @@ interface ISetting extends Document {
   chunkSize: number;
   chunkOverlap: number;
   systemPrompt: string;
+  userPrompt: string;
   streamingModel: string;
   nonStreamingModel: string;
   createdAt: Date;
@@ -37,6 +38,10 @@ const SettingSchema: Schema = new Schema(
       required: true,
     },
     systemPrompt: {
+      type: String,
+      required: true,
+    },
+    userPrompt: {
       type: String,
       required: true,
     },
