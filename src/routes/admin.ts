@@ -38,8 +38,11 @@ Admin.post("/setSettings", async (req: any, res: Response) => {
     },
     { new: true, upsert: true }
   )
-    .then((settings) => {
-      res.send(settings);
+    .then(async (setting) => {
+      const settings = await Setting.find().select(
+        "environment streamTemperature nonStreamTemperature chunkSize chunkOverlap systemPrompt streamingModel nonStreamingModel -_id"
+      );
+      res.send({setting,settings});
     })
     .catch((err) => {
       console.log(err);
@@ -98,6 +101,6 @@ Admin.post("/deleteEnvironment", async (req, res) => {
       console.log(err);
       res.status(500).send("Internal Server Error");
     });
-  });
+});
 
 export default Admin;

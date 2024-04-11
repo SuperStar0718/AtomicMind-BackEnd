@@ -9,6 +9,8 @@ import { BufferMemory } from "langchain/memory";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { ChatOpenAI } from "@langchain/openai";
 import { OpenAIEmbeddings } from "@langchain/openai";
+import mammoth from "mammoth";
+import { Document } from "@langchain/core/documents";
 import fs from "fs";
 import multer from "multer";
 import path from "path";
@@ -22,7 +24,6 @@ export const genResWithAllDocs = async (req: any, res: any) => {
       Connection: "keep-alive",
     });
 
-    
     const prompt = req.body.prompt.content;
     const id = req.body.id;
     const type = req.body.type;
@@ -30,12 +31,13 @@ export const genResWithAllDocs = async (req: any, res: any) => {
     const documentTitle = req.body.documentTitle;
     const folderName = req.body.folderName;
     const environment = req.body.environment;
-    
+    const ext = path.extname(name).toLowerCase();
+
     //get system settings
-    const settings = await Setting.findOne({environment: environment});
+    const settings = await Setting.findOne({ environment: environment });
     console.log("settings:", settings);
     //update bookTitle with documentTitle that matches with type and name
-    
+
     try {
       await User.findOneAndUpdate(
         { _id: id, "documents.fileName": name },
@@ -67,17 +69,8 @@ export const genResWithAllDocs = async (req: any, res: any) => {
 
     let splittedDocs = [],
       docs;
-    const processDocuments = async (fileName) => {
-      const loader = new PDFLoader(`uploads/${fileName}`);
-      docs = await loader.load();
-      const splitter = new RecursiveCharacterTextSplitter({
-        chunkSize: settings.chunkSize,
-        chunkOverlap: settings.chunkOverlap,
-      });
-      return splitter.splitDocuments(docs);
-    };
     // Call the ChatGPT API here
-    if (type === "document") {
+    if (ext === ".pdf") {
       const loader = new PDFLoader(`uploads/${name}`);
       docs = await loader.load();
       //  console.log("docs", docs)
@@ -86,25 +79,18 @@ export const genResWithAllDocs = async (req: any, res: any) => {
         chunkOverlap: settings.chunkOverlap,
       });
       splittedDocs = await splitter.splitDocuments(docs);
-    } else if (type === "folder") {
-      const documents = await User.findById(id, {
-        folders: { $elemMatch: { folderName: name } },
+    } else if (ext === ".docx") {
+      const result = await mammoth.extractRawText({
+        path: `uploads/${name}`,
       });
-      const fileNames = documents.folders[0].documents;
-      const docPromises = fileNames.map(processDocuments);
-      splittedDocs = await Promise.all(docPromises).then((docs) => docs.flat());
-    } else {
-      const user = await User.findById(id);
-      user.folders.forEach(async (folder) => {
-        const fileNames = folder.documents;
-        const docPromises = fileNames.map(processDocuments);
-        splittedDocs = await Promise.all(docPromises).then((docs) =>
-          docs.flat()
-        );
+      const text = result.value;
+      const splitter = new RecursiveCharacterTextSplitter({
+        chunkSize: settings.chunkSize,
+        chunkOverlap: settings.chunkOverlap,
       });
-
-      const docPromises = user.documents.map(processDocuments);
-      splittedDocs = await Promise.all(docPromises).then((docs) => docs.flat());
+      splittedDocs = await splitter.splitDocuments([
+        new Document({ pageContent: text }),
+      ]);
     }
 
     //check if streaming model is claude3 or gpt4 model
@@ -386,28 +372,33 @@ export const genRestWithSimilarity = async (req: any, res: any) => {
     const name = req.body.name;
     const documentTitle = req.body.documentTitle;
     const environment = req.body.environment;
-    const settings = await Setting.findOne({environment:environment});
+    const settings = await Setting.findOne({ environment: environment });
     let splittedDocs = [];
     const processDocuments = async (document) => {
-      const loader = new PDFLoader(`uploads/${document.fileName}`);
-      const docs = await loader.load();
-      const splitter = new RecursiveCharacterTextSplitter({
-        chunkSize: settings.chunkSize,
-        chunkOverlap: settings.chunkOverlap,
-      });
-      return splitter.splitDocuments(docs);
+      const ext = path.extname(document.fileName).toLowerCase();
+      if (ext === ".pdf") {
+        const loader = new PDFLoader(`uploads/${document.fileName}`);
+        const docs = await loader.load();
+        const splitter = new RecursiveCharacterTextSplitter({
+          chunkSize: settings.chunkSize,
+          chunkOverlap: settings.chunkOverlap,
+        });
+        return splitter.splitDocuments(docs);
+      } else if (ext === ".docx") {
+        const result = await mammoth.extractRawText({
+          path: `uploads/${document.fileName}`,
+        });
+        const text = result.value;
+        const splitter = new RecursiveCharacterTextSplitter({
+          chunkSize: settings.chunkSize,
+          chunkOverlap: settings.chunkOverlap,
+        });
+        return splitter.splitDocuments([new Document({ pageContent: text })]);
+      }
     };
     let user;
     // Call the ChatGPT API here
-    if (type === "document") {
-      const loader = new PDFLoader(`uploads/${name}`);
-      const docs = await loader.load();
-      const splitter = new RecursiveCharacterTextSplitter({
-        chunkSize: settings.chunkSize,
-        chunkOverlap: settings.chunkOverlap,
-      });
-      splittedDocs = await splitter.splitDocuments(docs);
-    } else if (type === "folder") {
+    if (type === "folder") {
       user = await User.findById(id, {
         folders: { $elemMatch: { folderName: name } },
       });
@@ -415,7 +406,7 @@ export const genRestWithSimilarity = async (req: any, res: any) => {
       const docPromises = documents.map(processDocuments);
       splittedDocs = await Promise.all(docPromises).then((docs) => docs.flat());
     } else {
-       user = await User.findById(id);
+      user = await User.findById(id);
       user.folders.forEach(async (folder) => {
         const fileNames = folder.documents;
         const docPromises = fileNames.map(processDocuments);
@@ -471,8 +462,6 @@ export const genRestWithSimilarity = async (req: any, res: any) => {
       });
     }
 
-
-   
     // const streamingModel = new ChatOpenAI({
     //   modelName: "gpt-4-turbo-preview",
 
