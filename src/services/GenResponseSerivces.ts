@@ -273,9 +273,9 @@ export const genResWithAllDocs = async (req: any, res: any) => {
         }),
       }
     );
-    console.log(settings.userPrompt + "/n " + prompt);
+    console.log(settings.userPrompt + "\n " + prompt);
     const response = await chain.call({
-      question: settings.userPrompt + '/n ' + prompt,
+      question: settings.userPrompt + '\n ' + prompt,
       chat_history: JSON.stringify(chat_history?.history || []),
     });
     const sourceDocuments = [];
@@ -602,7 +602,7 @@ export const genRestWithSimilarity = async (req: any, res: any) => {
     );
 
     const response = await chain.call({
-      question: settings.userPrompt + prompt,
+      question: settings.userPrompt + "\n " + prompt,
       chat_history: JSON.stringify(chat_history?.history || []),
     });
     const sourceDocuments = [];
