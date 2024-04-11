@@ -19,6 +19,7 @@ Admin.post("/setSettings", async (req: any, res: Response) => {
     chunkSize,
     chunkOverlap,
     systemPrompt,
+    userPrompt,
     streamingModel,
     nonStreamingModel,
   } = req.body;
@@ -33,6 +34,7 @@ Admin.post("/setSettings", async (req: any, res: Response) => {
       chunkSize,
       chunkOverlap,
       systemPrompt,
+      userPrompt,
       streamingModel,
       nonStreamingModel,
     },
@@ -40,7 +42,7 @@ Admin.post("/setSettings", async (req: any, res: Response) => {
   )
     .then(async (setting) => {
       const settings = await Setting.find().select(
-        "environment streamTemperature nonStreamTemperature chunkSize chunkOverlap systemPrompt streamingModel nonStreamingModel -_id"
+        "environment streamTemperature nonStreamTemperature chunkSize chunkOverlap systemPrompt userPrompt streamingModel nonStreamingModel -_id"
       );
       res.send({setting,settings});
     })
@@ -53,7 +55,7 @@ Admin.post("/setSettings", async (req: any, res: Response) => {
 Admin.get("/settings", (req, res) => {
   Setting.find()
     .select(
-      "environment streamTemperature nonStreamTemperature chunkSize chunkOverlap systemPrompt streamingModel nonStreamingModel -_id"
+      "environment streamTemperature nonStreamTemperature chunkSize chunkOverlap systemPrompt userPrompt streamingModel nonStreamingModel -_id"
     )
     .then((settings) => {
       res.send(settings);
@@ -72,6 +74,7 @@ Admin.post("/saveAsEnvironment", async (req, res) => {
     chunkSize,
     chunkOverlap,
     systemPrompt,
+    userPrompt,
     streamingModel,
     nonStreamingModel,
   } = req.body;
@@ -83,6 +86,7 @@ Admin.post("/saveAsEnvironment", async (req, res) => {
     chunkSize: chunkSize,
     chunkOverlap: chunkOverlap,
     systemPrompt: systemPrompt,
+    userPrompt: userPrompt,
     streamingModel: streamingModel,
     nonStreamingModel: nonStreamingModel,
   });
