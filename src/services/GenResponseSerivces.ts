@@ -257,10 +257,10 @@ export const genResWithAllDocs = async (req: any, res: any) => {
       streamingModel,
       vectorStoreRetriever,
       {
-        questionGeneratorChainOptions: {
-          llm: nonStreamModel,
-          template: STANDALONE_QUESTION_TEMPLATE_1,
-        },
+        // questionGeneratorChainOptions: {
+        //   llm: nonStreamModel,
+        //   template: STANDALONE_QUESTION_TEMPLATE_1,
+        // },
         qaTemplate: name
           ? QA_TEMPLATE.replace("[title of book]", documentTitle)
           : QA_TEMPLATE,
